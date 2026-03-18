@@ -1,0 +1,14 @@
+{
+  "id": "simpleAudioControl",
+  "name": "Simple Audio Control",
+  "description": "A simple widget for controlling audio output and input. Inspired by the audio widget in Noctalia Shell.",
+  "version": "1.0.0",
+  "author": "Dadangdut33",
+  "icon": "volume_up",
+  "type": "widget",
+  "component": "./SimpleAudioControlWidget.qml",
+  "settings": "./SimpleAudioControlSettings.qml",
+  "capabilities": ["dankbar-widget"],
+  "permissions": ["settings_read", "settings_write"],
+  "requires_dms": ">=1.2.0"
+}
