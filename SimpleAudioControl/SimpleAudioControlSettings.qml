@@ -101,24 +101,128 @@ PluginSettings {
                 color: Theme.surfaceText
             }
 
-            SliderSetting {
-                settingKey: "volumeScrollStep"
-                label: "Output Volume Scroll Step"
-                description: "How much the speaker volume changes per scroll tick"
-                defaultValue: 2
-                minimum: 1
-                maximum: 20
-                unit: "%"
+            Timer {
+                id: speakerStepDebounce
+                interval: 300
+                repeat: false
+                onTriggered: {
+                    saveValue("volumeScrollStep", Math.round(speakerStepSlider.value))
+                }
             }
 
-            SliderSetting {
-                settingKey: "micVolumeScrollStep"
-                label: "Input Volume Scroll Step"
-                description: "How much the microphone volume changes per scroll tick"
-                defaultValue: 2
-                minimum: 1
-                maximum: 20
-                unit: "%"
+            Column {
+                width: parent.width
+                spacing: 2
+
+                Row {
+                    width: parent.width
+                    height: 24
+                    spacing: Theme.spacingM
+
+                    StyledText {
+                        text: "Output Volume Scroll Step"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 180
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    DankSlider {
+                        id: speakerStepSlider
+                        width: parent.width - 180 - Theme.spacingM - speakerStepValue.width - Theme.spacingM
+                        minimum: 1
+                        maximum: 20
+                        showValue: false
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Binding {
+                            target: speakerStepSlider
+                            property: "value"
+                            value: loadValue("volumeScrollStep", 2)
+                        }
+
+                        onSliderValueChanged: (newValue) => {
+                            speakerStepDebounce.restart()
+                        }
+                    }
+
+                    StyledText {
+                        id: speakerStepValue
+                        text: Math.round(speakerStepSlider.value) + "%"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 50
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                StyledText {
+                    text: "How much the speaker volume changes per scroll tick"
+                    font.pixelSize: Theme.fontSizeSmall * 0.9
+                    opacity: 0.5
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                }
+            }
+
+            Timer {
+                id: micStepDebounce
+                interval: 300
+                repeat: false
+                onTriggered: {
+                    saveValue("micVolumeScrollStep", Math.round(micStepSlider.value))
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: 2
+
+                Row {
+                    width: parent.width
+                    height: 24
+                    spacing: Theme.spacingM
+
+                    StyledText {
+                        text: "Input Volume Scroll Step"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 180
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    DankSlider {
+                        id: micStepSlider
+                        width: parent.width - 180 - Theme.spacingM - micStepValue.width - Theme.spacingM
+                        minimum: 1
+                        maximum: 20
+                        showValue: false
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Binding {
+                            target: micStepSlider
+                            property: "value"
+                            value: loadValue("micVolumeScrollStep", 2)
+                        }
+
+                        onSliderValueChanged: (newValue) => {
+                            micStepDebounce.restart()
+                        }
+                    }
+
+                    StyledText {
+                        id: micStepValue
+                        text: Math.round(micStepSlider.value) + "%"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 50
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                StyledText {
+                    text: "How much the microphone volume changes per scroll tick"
+                    font.pixelSize: Theme.fontSizeSmall * 0.9
+                    opacity: 0.5
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                }
             }
 
         }
