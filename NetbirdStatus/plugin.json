@@ -1,0 +1,14 @@
+{
+  "id": "netbirdStatus",
+  "name": "NetBird Status",
+  "description": "Show NetBird VPN status in the bar. Ported from Noctalia netbird plugin.",
+  "version": "1.0.0",
+  "author": "Dadangdut33",
+  "icon": "network_check",
+  "type": "widget",
+  "component": "./NetbirdWidget.qml",
+  "settings": "./NetbirdSettings.qml",
+  "capabilities": ["dankbar-widget"],
+  "permissions": ["settings_read", "settings_write"],
+  "requires_dms": ">=1.2.0"
+}
