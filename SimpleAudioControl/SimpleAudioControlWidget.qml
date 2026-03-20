@@ -20,6 +20,7 @@ PluginComponent {
     property bool showMicValue: pluginData.showMicValue !== undefined ? pluginData.showMicValue : false
     property int volumeScrollStep: pluginData.volumeScrollStep || 2
     property int micVolumeScrollStep: pluginData.micVolumeScrollStep || 2
+    property int maxVolumePercent: pluginData.maxVolumePercent || 100
 
     // ── PipeWire references ──
     readonly property PwNode sink: Pipewire.defaultAudioSink
@@ -52,7 +53,9 @@ PluginComponent {
     function adjustSinkVolume(delta) {
         if (!sink?.audio) return
         if (sink.audio.muted) sink.audio.muted = false
-        const maxVol = (typeof AudioService !== "undefined" && AudioService.getMaxVolumePercent) ? AudioService.getMaxVolumePercent(sink) : 100
+        const maxSetting = root.maxVolumePercent || 100
+        const maxFromService = (typeof AudioService !== "undefined" && AudioService.getMaxVolumePercent) ? AudioService.getMaxVolumePercent(sink) : maxSetting
+        const maxVol = Math.min(maxSetting, maxFromService)
         const newVol = Math.max(0, Math.min(maxVol, sinkVolume + delta))
         sink.audio.volume = newVol / 100
     }
@@ -417,7 +420,9 @@ PluginComponent {
                                 id: outputSlider
                                 width: parent.width - outputVolLabel.width - outputMuteBtn.width - Theme.spacingS * 2
                                 from: 0
-                                to: (typeof AudioService !== "undefined" && AudioService.getMaxVolumePercent) ? AudioService.getMaxVolumePercent(root.sink) : 100
+                                to: (typeof AudioService !== "undefined" && AudioService.getMaxVolumePercent)
+                                    ? Math.min(root.maxVolumePercent, AudioService.getMaxVolumePercent(root.sink))
+                                    : root.maxVolumePercent
                                 value: root.sinkVolume
                                 anchors.verticalCenter: parent.verticalCenter
 
@@ -620,10 +625,28 @@ PluginComponent {
                             contentWidth: width
                             flickableDirection: Flickable.VerticalFlick
                             boundsBehavior: Flickable.StopAtBounds
+                            property int scrollGutter: Theme.spacingS
+                            ScrollBar.vertical: ScrollBar {
+                                id: streamsScrollBar
+                                policy: ScrollBar.AsNeeded
+                                visible: streamsFlickable.contentHeight > streamsFlickable.height
+                                width: 6
+                                minimumSize: 0.1
+                                contentItem: Rectangle {
+                                    radius: width / 2
+                                    color: Theme.primary
+                                    opacity: parent.pressed ? 0.9 : (parent.hovered ? 0.75 : 0.5)
+                                }
+                                background: Rectangle {
+                                    radius: width / 2
+                                    color: Theme.surfaceContainerHighest
+                                    opacity: 0.4
+                                }
+                            }
 
                             Column {
                                 id: streamsContentCol
-                                width: parent.width
+                                width: parent.width - (streamsScrollBar.visible ? (streamsScrollBar.width + streamsFlickable.scrollGutter) : 0)
                                 spacing: Theme.spacingM
 
                                 Repeater {
@@ -687,7 +710,7 @@ PluginComponent {
                                                 id: streamSlider
                                                 width: parent.width - streamVolLabel.width - streamMuteBtn.width - Theme.spacingS * 2
                                                 from: 0
-                                                to: 100
+                                                to: root.maxVolumePercent
                                                 value: modelData.audio ? Math.round(modelData.audio.volume * 100) : 0
                                                 anchors.verticalCenter: parent.verticalCenter
 
@@ -768,17 +791,6 @@ PluginComponent {
                             }
                         }
 
-                        // Scroll indicator
-                        Rectangle {
-                            visible: streamsFlickable.contentHeight > streamsFlickable.height
-                            width: 3
-                            radius: 1.5
-                            color: Theme.surfaceVariantText
-                            opacity: 0.5
-                            anchors.right: parent.right
-                            y: streamsFlickable.visibleArea.yPosition * parent.height
-                            height: Math.max(20, streamsFlickable.visibleArea.heightRatio * parent.height)
-                        }
                     }
 
                     // ── "No applications" message ──

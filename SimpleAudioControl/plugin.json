@@ -2,7 +2,7 @@
   "id": "simpleAudioControl",
   "name": "Simple Audio Control",
   "description": "A simple widget for controlling audio output and input. Inspired by the audio widget in Noctalia Shell.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Dadangdut33",
   "icon": "volume_up",
   "type": "widget",

@@ -225,6 +225,68 @@ PluginSettings {
                 }
             }
 
+            Timer {
+                id: maxVolumeDebounce
+                interval: 300
+                repeat: false
+                onTriggered: {
+                    saveValue("maxVolumePercent", Math.round(maxVolumeSlider.value))
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: 2
+
+                Row {
+                    width: parent.width
+                    height: 24
+                    spacing: Theme.spacingM
+
+                    StyledText {
+                        text: "Max Volume"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 180
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    DankSlider {
+                        id: maxVolumeSlider
+                        width: parent.width - 180 - Theme.spacingM - maxVolumeValue.width - Theme.spacingM
+                        minimum: 100
+                        maximum: 300
+                        showValue: false
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Binding {
+                            target: maxVolumeSlider
+                            property: "value"
+                            value: loadValue("maxVolumePercent", 100)
+                        }
+
+                        onSliderValueChanged: (newValue) => {
+                            maxVolumeDebounce.restart()
+                        }
+                    }
+
+                    StyledText {
+                        id: maxVolumeValue
+                        text: Math.round(maxVolumeSlider.value) + "%"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 50
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                StyledText {
+                    text: "Maximum allowed volume (up to 300%)"
+                    font.pixelSize: Theme.fontSizeSmall * 0.9
+                    opacity: 0.5
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                }
+            }
+
         }
 
     }
