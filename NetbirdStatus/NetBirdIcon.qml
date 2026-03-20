@@ -8,6 +8,7 @@ Item {
     property int size: Theme.iconSize
     property color color: Theme.surfaceText
     property bool crossed: false
+    property bool colorize: true
 
     implicitWidth: size
     implicitHeight: size
@@ -22,7 +23,7 @@ Item {
 
         layer.enabled: true
         layer.effect: MultiEffect {
-            colorization: 1.0
+            colorization: root.colorize ? 1.0 : 0.0
             colorizationColor: root.color
         }
     }

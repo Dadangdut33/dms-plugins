@@ -14,3 +14,26 @@ Ported from [netbird plugin in noctalia-shell](https://noctalia.dev/plugins/netb
 - The netbird CLI must be accessible in your PATH
 
 ![NetbirdStatus - Widget](preview/widget.png)
+![NetbirdStatus - Settings](preview/settings.png)
+
+## Troubleshooting
+
+### "Not installed" message
+
+If you see "NetBird not installed", make sure NetBird is installed and the `netbird` binary is accessible in your PATH.
+
+### Status not updating
+
+If the status doesn't update automatically, try:
+
+1. Increasing the refresh interval in settings
+2. Using the IPC `refresh` command
+3. Checking that NetBird daemon is running (`netbird service status`)
+
+### Cannot connect/disconnect
+
+Ensure that:
+
+- You have proper permissions to control NetBird
+- NetBird is authenticated and set up (`netbird up` in terminal first)
+- The NetBird daemon service is running (`netbird service start`)

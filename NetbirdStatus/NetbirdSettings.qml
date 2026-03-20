@@ -50,19 +50,17 @@ PluginSettings {
             }
 
             ToggleSetting {
-                id: compactModeToggle
-                settingKey: "compactMode"
-                label: "Compact Mode"
-                description: "Show only icon in the bar"
-                defaultValue: false
-            }
-
-            ToggleSetting {
                 settingKey: "showIpAddress"
                 label: "Show IP Address"
                 description: "Display NetBird IP in the bar widget"
                 defaultValue: true
-                enabled: !compactModeToggle.checked
+            }
+
+            ToggleSetting {
+                settingKey: "colorizeIcon"
+                label: "Use Theme Icon Color"
+                description: "Colorize the NetBird icon to match the theme"
+                defaultValue: true
             }
 
             ToggleSetting {

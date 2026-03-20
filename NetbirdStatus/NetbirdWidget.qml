@@ -15,12 +15,12 @@ PluginComponent {
 
     // ── Settings from pluginData ──
     property int refreshInterval: pluginData.refreshInterval !== undefined ? pluginData.refreshInterval : 30000
-    property bool compactMode: pluginData.compactMode !== undefined ? pluginData.compactMode : false
     property bool showIpAddress: pluginData.showIpAddress !== undefined ? pluginData.showIpAddress : true
     property bool hideDisconnected: pluginData.hideDisconnected !== undefined ? pluginData.hideDisconnected : false
     property bool showPing: pluginData.showPing !== undefined ? pluginData.showPing : false
     property int pingCount: pluginData.pingCount !== undefined ? pluginData.pingCount : 5
     property string customTerminal: pluginData.terminalCommand || ""
+    property bool colorizeIcon: pluginData.colorizeIcon !== undefined ? pluginData.colorizeIcon : true
     function normalizePeerAction(value) {
         if (value === "Copy IP") return "copy-ip"
         if (value === "SSH to host") return "ssh"
@@ -424,6 +424,7 @@ PluginComponent {
                     opacity: root.isRefreshing ? 0.5 : 1.0
                     anchors.verticalCenter: parent.verticalCenter
                     crossed: !root.netbirdRunning
+                    colorize: root.colorizeIcon
                 }
 
                 StyledText {
@@ -432,7 +433,7 @@ PluginComponent {
                     font.weight: Font.Medium
                     color: Theme.surfaceText
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: !root.compactMode && root.netbirdRunning && root.showIpAddress && root.netbirdIp !== ""
+                    visible: root.netbirdRunning && root.showIpAddress && root.netbirdIp !== ""
                 }
             }
 
@@ -461,6 +462,7 @@ PluginComponent {
                     opacity: root.isRefreshing ? 0.5 : 1.0
                     anchors.horizontalCenter: parent.horizontalCenter
                     crossed: !root.netbirdRunning
+                    colorize: root.colorizeIcon
                 }
 
                 StyledText {
@@ -469,7 +471,7 @@ PluginComponent {
                     font.weight: Font.Medium
                     color: Theme.surfaceText
                     anchors.horizontalCenter: parent.horizontalCenter
-                    visible: !root.compactMode && root.netbirdRunning && root.showIpAddress && root.netbirdIp !== ""
+                    visible: root.netbirdRunning && root.showIpAddress && root.netbirdIp !== ""
                 }
             }
 
@@ -516,6 +518,7 @@ PluginComponent {
                                 color: root.netbirdRunning ? Theme.primary : Theme.surfaceVariantText
                                 anchors.verticalCenter: parent.verticalCenter
                                 crossed: !root.netbirdRunning
+                                colorize: root.colorizeIcon
                             }
 
                             Column {
