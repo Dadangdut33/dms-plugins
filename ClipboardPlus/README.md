@@ -1,6 +1,6 @@
 # ClipBoard+
 
-Advanced clipboard manager for DMS with clipboard history, pinned items, notes, and built-in ToDo pages.
+Advanced clipboard manager for DMS with clipboard history, pinned items, notes, and built-in ToDo list.
 
 Ported / inspired from [clipper in noctalia-shell](https://noctalia.dev/plugins/clipper/) by [blackbartblues](https://github.com/blackbartblues).
 
