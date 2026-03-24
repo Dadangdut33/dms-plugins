@@ -51,6 +51,8 @@ Rectangle {
     // Constants for sizing
     readonly property int minHeight: 200
     readonly property int maxHeight: 600
+    readonly property int minWidth: 305
+    readonly property int maxWidth: 900
     readonly property int headerHeight: 40
     readonly property int margins: 24
 
@@ -90,6 +92,7 @@ Rectangle {
             topRightRadius: Theme.cornerRadius
             bottomLeftRadius: 0
             bottomRightRadius: 0
+            clip: true
 
             RowLayout {
                 id: headerContent
@@ -100,22 +103,23 @@ Rectangle {
                 anchors.rightMargin: 6
                 spacing: 10
                 z: 1
+                clip: true
 
                 // Icon - DRAG HANDLE
                 Item {
                     Layout.preferredWidth: 24
                     Layout.fillHeight: true
 
-                        DankIcon {
-                            anchors.centerIn: parent
-                            name: "sticky_note_2"
-                            size: 15
-                            color: {
-                                const noteColor = localColor;
-                                const scheme = colorSchemes[noteColor];
-                                return scheme ? scheme.fg : "#000000";
-                            }
+                    DankIcon {
+                        anchors.centerIn: parent
+                        name: "sticky_note_2"
+                        size: 15
+                        color: {
+                            const noteColor = localColor;
+                            const scheme = colorSchemes[noteColor];
+                            return scheme ? scheme.fg : "#000000";
                         }
+                    }
 
                     MouseArea {
                         id: dragArea
@@ -150,7 +154,7 @@ Rectangle {
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    Layout.minimumWidth: 150
+                    Layout.minimumWidth: 125
 
                     TextInput {
                         id: titleInput
@@ -168,6 +172,7 @@ Rectangle {
                         font.bold: false
                         selectByMouse: true
                         clip: true
+                        wrapMode: TextInput.Wrap
                         activeFocusOnPress: true
 
                         Text {
@@ -295,7 +300,7 @@ Rectangle {
                 TextArea {
                     id: textArea
                     width: parent.width
-                    wrapMode: TextArea.Wrap
+                    wrapMode: TextEdit.WrapAnywhere
                     selectByMouse: true
                     activeFocusOnPress: true
                     color: {
@@ -372,5 +377,58 @@ Rectangle {
     }
     Component.onDestruction: {
         root.syncChanges();
+    }
+
+    // Resize handle (bottom-right)
+    Rectangle {
+        id: resizeHandle
+        width: 16
+        height: 16
+        radius: 4
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: 6
+        anchors.bottomMargin: 6
+        color: Qt.rgba(0, 0, 0, 0.12)
+        border.width: 1
+        border.color: Qt.rgba(0, 0, 0, 0.18)
+        z: 10
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.SizeFDiagCursor
+            property real startW: 0
+            property real startH: 0
+            property real startX: 0
+            property real startY: 0
+
+            onPressed: function(mouse) {
+                startW = root.width;
+                startH = root.height;
+                startX = mouse.x;
+                startY = mouse.y;
+                if (root.pluginApi && root.pluginApi.mainInstance) {
+                    root.pluginApi.mainInstance.bringNoteToFront(root.note.id);
+                }
+            }
+
+            onPositionChanged: function(mouse) {
+                const dx = mouse.x - startX;
+                const dy = mouse.y - startY;
+                const newW = Math.max(root.minWidth, Math.min(root.maxWidth, startW + dx));
+                const newH = Math.max(root.minHeight, Math.min(root.maxHeight, startH + dy));
+                root.width = newW;
+                root.height = newH;
+            }
+
+            onReleased: {
+                if (root.pluginApi && root.pluginApi.mainInstance && root.note) {
+                    root.pluginApi.mainInstance.updateNoteCard(root.note.id, {
+                        width: root.width,
+                        height: root.height
+                    });
+                }
+            }
+        }
     }
 }

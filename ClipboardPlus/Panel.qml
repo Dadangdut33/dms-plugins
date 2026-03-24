@@ -1239,7 +1239,7 @@ Item {
                         visible: pinnedListView.contentHeight > pinnedListView.height
                         width: 6
                         minimumSize: 0.1
-                        opacity: (pinnedListView.hoverScroll || pressed) ? 1.0 : 0.0
+                        opacity: (hovered || pressed) ? 1.0 : 0.0
                         Behavior on opacity {
                             NumberAnimation { duration: Theme.shortDuration }
                         }
