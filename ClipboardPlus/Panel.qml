@@ -1224,26 +1224,15 @@ Item {
                 ListView {
                     id: pinnedListView
                     Layout.fillWidth: true
-                    Layout.fillHeight: pinnedPanel.showPinned && !pinnedPanel.showTodo
-                    Layout.preferredHeight: pinnedPanel.showTodo ? Math.max(140, pinnedPanel.height * 0.55) : 0
+                    Layout.fillHeight: true
                     visible: pinnedPanel.showPinned
                     orientation: ListView.Vertical
                     spacing: Theme.spacingS
                     clip: true
-                    header: Item { height: Theme.spacingS }
-                    footer: Item { height: Theme.spacingS }
-                    property int scrollGutter: Theme.spacingS
-                    property int scrollInset: 0
+
+                    model: root.pluginApi?.mainInstance?.pinnedItems || []
                     property bool hoverScroll: false
-                    property real savedContentY: 0
-                    property bool restoringScroll: false
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        acceptedButtons: Qt.NoButton
-                        onEntered: pinnedListView.hoverScroll = true
-                        onExited: pinnedListView.hoverScroll = false
-                    }
+
                     ScrollBar.vertical: ScrollBar {
                         id: pinnedScrollBar
                         policy: ScrollBar.AsNeeded
@@ -1266,25 +1255,9 @@ Item {
                         }
                     }
 
-                    onContentYChanged: {
-                        if (visible && !restoringScroll) {
-                            savedContentY = contentY;
-                        }
-                    }
-                    function restorePinnedScroll() {
-                        if (!visible) return;
-                        pinnedListView.restoringScroll = true;
-                        const maxY = Math.max(0, pinnedListView.contentHeight - pinnedListView.height);
-                        pinnedListView.contentY = Math.max(0, Math.min(pinnedListView.savedContentY, maxY));
-                        pinnedListView.restoringScroll = false;
-                    }
-                    onCountChanged: Qt.callLater(restorePinnedScroll)
-                    onModelChanged: Qt.callLater(restorePinnedScroll)
-                    onVisibleChanged: Qt.callLater(restorePinnedScroll)
-
-                    model: root.pluginApi?.mainInstance?.pinnedItems || []
-
                     delegate: ClipboardCard {
+                        width: pinnedListView.width
+                        panelRoot: root
                         clipboardItem: {
                             return {
                                 "id": modelData.id,
@@ -1295,10 +1268,6 @@ Item {
                                 "content": modelData.content || ""  // For images, this is data URL
                             };
                         }
-                        width: pinnedListView.width - pinnedListView.scrollInset
-                        expandToContent: true
-                        maxExpandedHeight: pinnedPanel.height * 0.5
-                        panelRoot: root
                         isPinned: true
                         pluginApi: root.pluginApi
                         screen: root.currentScreen
@@ -1331,7 +1300,7 @@ Item {
 
                         onPinClicked: {
                             root.pluginApi?.mainInstance?.unpinItem(modelData.id);
-                            ToastService.showInfo(pluginApi?.tr("toast.item-unpinned") || "Item unpinned");
+                            ToastService.showInfo("Item unpinned");
                         }
 
                         onDeleteClicked: {
@@ -1342,7 +1311,7 @@ Item {
                     StyledText {
                         anchors.centerIn: parent
                         visible: pinnedListView.count === 0
-                        text: pluginApi?.tr("panel.no-pinned") || "No pinned items"
+                        text: "No pinned items"
                         color: Theme.surfaceVariantText
                     }
                 }
@@ -1505,7 +1474,7 @@ Item {
                     }
                 }
             }
-        }  // End pinnedPanel
+        }  // End pinnedPanel & todo
 
         // Vertical separator between pinned and notecards
         Rectangle {
