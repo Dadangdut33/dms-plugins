@@ -1,0 +1,14 @@
+{
+  "id": "clipboardPlus",
+  "name": "ClipBoard+",
+  "description": "Advanced clipboard manager ported from Noctalia Clipper plugin.",
+  "version": "1.0.0",
+  "author": "Dadangdut33",
+  "icon": "content_paste",
+  "type": "widget",
+  "component": "./ClipboardPlusWidget.qml",
+  "settings": "./ClipboardPlusSettings.qml",
+  "capabilities": ["dankbar-widget"],
+  "permissions": ["settings_read", "settings_write"],
+  "requires_dms": ">=1.2.0"
+}
