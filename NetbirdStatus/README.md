@@ -27,8 +27,7 @@ If you see "NetBird not installed", make sure NetBird is installed and the `netb
 If the status doesn't update automatically, try:
 
 1. Increasing the refresh interval in settings
-2. Using the IPC `refresh` command
-3. Checking that NetBird daemon is running (`netbird service status`)
+2. Checking that NetBird daemon is running (`netbird service status`)
 
 ### Cannot connect/disconnect
 
