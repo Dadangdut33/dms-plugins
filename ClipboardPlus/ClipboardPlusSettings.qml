@@ -75,18 +75,18 @@ PluginSettings {
             }
 
             ToggleSetting {
+                settingKey: "showPanelSeparator"
+                label: "Show Panel Separator"
+                description: "Show the vertical separator between left component (pinned / todo) & note cards"
+                defaultValue: true
+            }
+
+            ToggleSetting {
                 id: hideBackgroundToggle
                 settingKey: "hidePanelBackground"
                 label: "Hide Panel Background"
                 description: "Disable background dimming"
                 defaultValue: false
-            }
-
-            Timer {
-                id: dimmingDebounce
-                interval: 300
-                repeat: false
-                onTriggered: root.saveValue("panelDimOpacity", Math.round(dimmingSlider.value))
             }
 
             Column {
@@ -100,7 +100,7 @@ PluginSettings {
                     spacing: Theme.spacingM
 
                     StyledText {
-                        text: "Background Dimming"
+                        text: "Background Opacity"
                         font.pixelSize: Theme.fontSizeSmall
                         width: 160
                         anchors.verticalCenter: parent.verticalCenter
@@ -118,11 +118,11 @@ PluginSettings {
                         Binding {
                             target: dimmingSlider
                             property: "value"
-                            value: loadValue("panelDimOpacity", 35)
+                            value: loadValue("backgroundOpacity", 35)
                         }
 
                         onSliderValueChanged: () => {
-                            dimmingDebounce.restart()
+                            backgroundOpacityDebounce.restart()
                         }
                     }
 
@@ -136,11 +136,146 @@ PluginSettings {
                 }
 
                 StyledText {
-                    text: "Controls the background dimming opacity"
+                    text: "Controls the backdrop opacity"
                     font.pixelSize: Theme.fontSizeSmall * 0.9
                     opacity: 0.6
                     width: parent.width
                     wrapMode: Text.Wrap
+                }
+            }
+
+            Timer {
+                id: backgroundOpacityDebounce
+                interval: 300
+                repeat: false
+                onTriggered: root.saveValue("backgroundOpacity", Math.round(dimmingSlider.value))
+            }
+        }
+    }
+
+    // ── Panel Opacity ──
+    StyledRect {
+        width: parent.width
+        height: opacityColumn.implicitHeight + Theme.spacingL * 2
+        radius: Theme.cornerRadius
+        color: Theme.surfaceContainerHigh
+
+        Column {
+            id: opacityColumn
+            anchors.fill: parent
+            anchors.margins: Theme.spacingL
+            spacing: Theme.spacingM
+
+            StyledText {
+                text: "Panel Opacity"
+                font.pixelSize: Theme.fontSizeMedium
+                font.weight: Font.Medium
+                color: Theme.surfaceText
+            }
+
+            Timer {
+                id: pinnedOpacityDebounce
+                interval: 300
+                repeat: false
+                onTriggered: root.saveValue("panelOpacityPinned", Math.round(pinnedOpacitySlider.value))
+            }
+
+            Column {
+                width: parent.width
+                spacing: 2
+
+                Row {
+                    width: parent.width
+                    height: 24
+                    spacing: Theme.spacingM
+
+                    StyledText {
+                        text: "Pinned/ToDo Panel"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 160
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    DankSlider {
+                        id: pinnedOpacitySlider
+                        width: parent.width - 160 - Theme.spacingM - pinnedOpacityValue.width - Theme.spacingM
+                        minimum: 20
+                        maximum: 100
+                        step: 5
+                        showValue: false
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Binding {
+                            target: pinnedOpacitySlider
+                            property: "value"
+                            value: loadValue("panelOpacityPinned", 100)
+                        }
+
+                        onSliderValueChanged: () => {
+                            pinnedOpacityDebounce.restart()
+                        }
+                    }
+
+                    StyledText {
+                        id: pinnedOpacityValue
+                        text: Math.round(pinnedOpacitySlider.value) + "%"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 50
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            Timer {
+                id: clipboardOpacityDebounce
+                interval: 300
+                repeat: false
+                onTriggered: root.saveValue("panelOpacityClipboard", Math.round(clipboardOpacitySlider.value))
+            }
+
+            Column {
+                width: parent.width
+                spacing: 2
+
+                Row {
+                    width: parent.width
+                    height: 24
+                    spacing: Theme.spacingM
+
+                    StyledText {
+                        text: "Clipboard Panel"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 160
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    DankSlider {
+                        id: clipboardOpacitySlider
+                        width: parent.width - 160 - Theme.spacingM - clipboardOpacityValue.width - Theme.spacingM
+                        minimum: 20
+                        maximum: 100
+                        step: 5
+                        showValue: false
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Binding {
+                            target: clipboardOpacitySlider
+                            property: "value"
+                            value: loadValue("panelOpacityClipboard", 100)
+                        }
+
+                        onSliderValueChanged: () => {
+                            clipboardOpacityDebounce.restart()
+                        }
+                    }
+
+                    StyledText {
+                        id: clipboardOpacityValue
+                        text: Math.round(clipboardOpacitySlider.value) + "%"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 50
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
                 }
             }
         }

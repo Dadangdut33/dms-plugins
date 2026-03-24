@@ -55,7 +55,7 @@ Item {
         ? (screen?.height ?? 900)
         : Math.min((screen?.height ?? 900) * 0.85, 760)
     property real dimOpacity: {
-        const raw = pluginApi?.pluginSettings?.panelDimOpacity;
+        const raw = pluginApi?.pluginSettings?.backgroundOpacity;
         const percent = (raw !== undefined && raw !== null) ? raw : 35;
         return Math.max(0, Math.min(1, percent / 100));
     }
@@ -215,7 +215,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             height: Math.min(300, screen?.height * 0.3 || 300)
-            color: Theme.surfaceContainerHigh
+            color: Theme.withAlpha(Theme.surfaceContainerHigh, Math.max(0.2, Math.min(1.0, (pluginApi?.pluginSettings?.panelOpacityClipboard ?? 100) / 100)))
             radius: Theme.cornerRadius
             opacity: 1.0  // Override global panel opacity
 
@@ -224,6 +224,7 @@ Item {
                 topRightRadius: Theme.cornerRadius
                 bottomLeftRadius: 0
                 bottomRightRadius: 0
+                color: Theme.withAlpha(Theme.surfaceContainerHigh, Math.max(0.2, Math.min(1.0, (pluginApi?.pluginSettings?.panelOpacityClipboard ?? 100) / 100)))
                 opacity: 1.0
             }
 
@@ -1174,7 +1175,7 @@ Item {
             anchors.bottom: clipboardPanel.top
             anchors.bottomMargin: Theme.spacingM
             width: Math.min(300, screen?.width * 0.2 || 300)
-            color: Theme.surfaceContainerHigh
+            color: Theme.withAlpha(Theme.surfaceContainerHigh, Math.max(0.2, Math.min(1.0, (pluginApi?.pluginSettings?.panelOpacityPinned ?? 100) / 100)))
             radius: Theme.cornerRadius
             opacity: 1.0  // Override global panel opacity
 
@@ -1478,7 +1479,7 @@ Item {
 
         // Vertical separator between pinned and notecards
         Rectangle {
-            visible: pinnedPanel.visible && noteCardsPanel.visible
+            visible: (pluginApi?.pluginSettings?.showPanelSeparator ?? true) && pinnedPanel.visible && noteCardsPanel.visible
             anchors.left: pinnedPanel.right
             anchors.top: parent.top
             anchors.bottom: clipboardPanel.top

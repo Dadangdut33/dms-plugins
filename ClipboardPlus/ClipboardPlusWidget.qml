@@ -30,6 +30,10 @@ PluginComponent {
     property bool closeOnOutsideClick: pluginData.closeOnOutsideClick !== undefined ? pluginData.closeOnOutsideClick : true
     property int maxPinnedTextMb: pluginData.maxPinnedTextMb !== undefined ? pluginData.maxPinnedTextMb : 1
     property int maxPinnedImageMb: pluginData.maxPinnedImageMb !== undefined ? pluginData.maxPinnedImageMb : 5
+    property int panelOpacityPinned: pluginData.panelOpacityPinned !== undefined ? pluginData.panelOpacityPinned : 100
+    property int panelOpacityClipboard: pluginData.panelOpacityClipboard !== undefined ? pluginData.panelOpacityClipboard : 100
+    property int backgroundOpacity: pluginData.backgroundOpacity !== undefined ? pluginData.backgroundOpacity : panelDimOpacity
+    property bool showPanelSeparator: pluginData.showPanelSeparator !== undefined ? pluginData.showPanelSeparator : true
 
     function screenKey(screen) {
         return screen?.name || "default"
@@ -129,9 +133,12 @@ PluginComponent {
         property bool autoPasteOnRightClick: root.autoPasteOnRightClick
         property bool autoPasteOnEnterSelect: root.autoPasteOnEnterSelect
         property int autoPasteDelay: root.autoPasteDelay
-        property int panelDimOpacity: root.panelDimOpacity
         property int maxPinnedTextMb: root.maxPinnedTextMb
         property int maxPinnedImageMb: root.maxPinnedImageMb
+        property int panelOpacityPinned: root.panelOpacityPinned
+        property int panelOpacityClipboard: root.panelOpacityClipboard
+        property int backgroundOpacity: root.backgroundOpacity
+        property bool showPanelSeparator: root.showPanelSeparator
         property bool closeOnOutsideClick: root.closeOnOutsideClick
     }
 
