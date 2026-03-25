@@ -68,6 +68,13 @@ PluginSettings {
             }
 
             ToggleSetting {
+                settingKey: "enableTabNavigation"
+                label: "Enable Tab Navigation"
+                description: "Cycle focus between clipboard, search, categories, pinned, and todo"
+                defaultValue: true
+            }
+
+            ToggleSetting {
                 settingKey: "showBarWidget"
                 label: "Show Bar Widget"
                 description: "Display the ClipBoard+ icon in the bar"

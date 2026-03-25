@@ -80,9 +80,117 @@ Item {
     // Filtering
     property string filterType: ""
     property string searchText: ""
+    property bool enableTabNavigation: pluginApi?.pluginSettings?.enableTabNavigation ?? true
+    property var categoryTabTarget: null
+    property int categoryIndex: 0
+
+    function categoryButtons() {
+        const buttons = [btnAll, btnText, btnImage, btnColorFilter, btnLink, btnCode, btnEmoji, btnFile];
+        return buttons.filter(b => b && (b.visible === undefined || b.visible));
+    }
+
+    function filterTypeToCategoryIndex() {
+        switch (filterType) {
+        case "Text": return 1;
+        case "Image": return 2;
+        case "Color": return 3;
+        case "Link": return 4;
+        case "Code": return 5;
+        case "Emoji": return 6;
+        case "File": return 7;
+        default: return 0;
+        }
+    }
+
+    function categoryIndexToFilterType(idx) {
+        switch (idx) {
+        case 1: return "Text";
+        case 2: return "Image";
+        case 3: return "Color";
+        case 4: return "Link";
+        case 5: return "Code";
+        case 6: return "Emoji";
+        case 7: return "File";
+        default: return "";
+        }
+    }
+
+    function focusCategoryIndex(idx) {
+        const buttons = categoryButtons();
+        if (buttons.length === 0) return;
+        let next = idx;
+        if (next < 0) next = buttons.length - 1;
+        if (next >= buttons.length) next = 0;
+        categoryIndex = next;
+        const target = buttons[next];
+        if (target && typeof target.forceActiveFocus === "function") {
+            target.forceActiveFocus();
+        }
+    }
+
+    function handleListLeft() {
+        if (listView && listView.count > 0) {
+            selectedIndex = Math.max(0, selectedIndex - 1);
+            listView.positionViewAtIndex(selectedIndex, ListView.Contain);
+        }
+    }
+
+    function handleListRight() {
+        if (listView && listView.count > 0) {
+            selectedIndex = Math.min(listView.count - 1, selectedIndex + 1);
+            listView.positionViewAtIndex(selectedIndex, ListView.Contain);
+        }
+    }
+
+    function tabTargets() {
+        const targets = [];
+        if (listView) targets.push(listView);
+        if (searchField) targets.push(searchField);
+        if (categoryTabTarget) targets.push(categoryTabTarget);
+        if (pinnedFocus && pinnedFocus.visible) targets.push(pinnedFocus);
+        if (todoFocus && todoFocus.visible) targets.push(todoFocus);
+        return targets.filter(t => t && (t.visible === undefined || t.visible));
+    }
+
+    function currentTabIndex(targets) {
+        for (let i = 0; i < targets.length; i++) {
+            if (targets[i].activeFocus) return i;
+        }
+        return -1;
+    }
+
+    function focusTarget(target) {
+        if (!target) return;
+        if (typeof target.forceActiveFocus === "function") {
+            target.forceActiveFocus();
+        } else if (target.contentItem && typeof target.contentItem.forceActiveFocus === "function") {
+            target.contentItem.forceActiveFocus();
+        }
+    }
+
+    function advanceTab() {
+        if (!enableTabNavigation) return;
+        const targets = tabTargets();
+        if (targets.length === 0) return;
+        const idx = currentTabIndex(targets);
+        const next = targets[(idx + 1) % targets.length];
+        focusTarget(next);
+    }
+
+    function reverseTab() {
+        if (!enableTabNavigation) return;
+        const targets = tabTargets();
+        if (targets.length === 0) return;
+        const idx = currentTabIndex(targets);
+        const next = targets[(idx - 1 + targets.length) % targets.length];
+        focusTarget(next);
+    }
 
     // Reset selection when filter changes
-    onFilterTypeChanged: selectedIndex = 0
+    onFilterTypeChanged: {
+        selectedIndex = 0;
+        categoryIndex = filterTypeToCategoryIndex();
+    }
     onSearchTextChanged: selectedIndex = 0
 
     // Filtered items (uses shared getItemType from Main.qml)
@@ -121,6 +229,7 @@ Item {
     }
 
     Keys.onReturnPressed: {
+        if (!listView || !listView.activeFocus) return;
         if (listView.count > 0 && selectedIndex >= 0 && selectedIndex < listView.count) {
             const item = root.filteredItems[selectedIndex];
             if (item) {
@@ -134,6 +243,11 @@ Item {
                 }
             }
         }
+    }
+
+    Keys.onTabPressed: event => {
+        advanceTab();
+        event.accepted = true;
     }
 
     Keys.onEscapePressed: {
@@ -231,7 +345,7 @@ Item {
             height: Math.min(300, screen?.height * 0.3 || 300)
             color: Theme.withAlpha(Theme.surfaceContainerHigh, Math.max(0.2, Math.min(1.0, (pluginApi?.pluginSettings?.panelOpacityClipboard ?? 100) / 100)))
             radius: Theme.cornerRadius
-            opacity: 1.0  // Override global panel opacity
+            opacity: 1.0
 
             Rectangle {
                 topLeftRadius: Theme.cornerRadius
@@ -259,9 +373,7 @@ Item {
                         Layout.topMargin: -2 * 1
                     }
 
-                    Item {
-                        Layout.fillWidth: true
-                    }
+                    Item { Layout.fillWidth: true }
 
                     DankActionButton {
                         iconName: "settings"
@@ -273,6 +385,7 @@ Item {
                             PopoutService.openSettingsWithTab("plugins");
                         }
                     }
+
                     StyledRect {
                         id: searchInput
                         Layout.preferredWidth: 250
@@ -295,31 +408,29 @@ Item {
                             Keys.onEscapePressed: {
                                 if (text !== "") {
                                     text = "";
-                                } else {
-                                    root.onEscapePressed();
+                                } else if (root.pluginApi) {
+                                    root.pluginApi.closePanel(screen);
                                 }
                             }
                             Keys.onLeftPressed: event => {
                                 if (searchField.cursorPosition === 0) {
-                                    root.onLeftPressed();
+                                    root.handleListLeft();
                                     event.accepted = true;
                                 }
                             }
                             Keys.onRightPressed: event => {
                                 if (searchField.cursorPosition === text.length) {
-                                    root.onRightPressed();
+                                    root.handleListRight();
                                     event.accepted = true;
                                 }
                             }
                             Keys.onReturnPressed: root.onReturnPressed()
                             Keys.onEnterPressed: root.onReturnPressed()
                             Keys.onTabPressed: event => {
-                                root.filterType = "Text";
+                                root.advanceTab();
                                 event.accepted = true;
                             }
-                            Keys.onUpPressed: event => {
-                                event.accepted = true;
-                            }
+                            Keys.onUpPressed: event => { event.accepted = true; }
                             Keys.onDownPressed: event => {
                                 listView.forceActiveFocus();
                                 event.accepted = true;
@@ -353,15 +464,38 @@ Item {
                         }
                     }
 
-                    Item {
-                        Layout.fillWidth: true
-                    }
+                    Item { Layout.fillWidth: true }
 
-                    // Filter type -> accent color key mapping (mirrors ClipboardCard defaults)
-                    // All/Text/Link/Emoji -> mPrimary, Image/File -> mTertiary, Color/Code -> mSecondary
-                    RowLayout {
-                        spacing: Theme.spacingXS
+                    // Filter buttons row
+                    FocusScope {
+                        id: categoryFocus
                         Layout.alignment: Qt.AlignVCenter
+                        implicitWidth: filterRow.implicitWidth
+                        implicitHeight: filterRow.implicitHeight
+                        activeFocusOnTab: true
+                        Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                        Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
+                        Keys.onLeftPressed: event => { root.focusCategoryIndex(root.categoryIndex - 1); event.accepted = true; }
+                        Keys.onRightPressed: event => { root.focusCategoryIndex(root.categoryIndex + 1); event.accepted = true; }
+                        Keys.onReturnPressed: event => {
+                            root.filterType = root.categoryIndexToFilterType(root.categoryIndex);
+                            event.accepted = true;
+                        }
+                        Keys.onEnterPressed: event => {
+                            root.filterType = root.categoryIndexToFilterType(root.categoryIndex);
+                            event.accepted = true;
+                        }
+                        onActiveFocusChanged: {
+                            if (activeFocus) {
+                                root.focusCategoryIndex(root.filterTypeToCategoryIndex());
+                            }
+                        }
+                        Component.onCompleted: root.categoryTabTarget = categoryFocus
+
+                        RowLayout {
+                            id: filterRow
+                            spacing: Theme.spacingXS
+                            Layout.alignment: Qt.AlignVCenter
 
                         // --- ALL ---
                         Item {
@@ -370,9 +504,22 @@ Item {
                             readonly property color accentFgColor: Theme.primaryText
                             readonly property bool isActive: root.filterType === fType
                             readonly property int itemCount: (pluginApi?.mainInstance?.items || []).length
-                            // Expand slightly so the burst ring has room without clipping
+                            readonly property bool keyboardFocus: categoryFocus.activeFocus && root.categoryIndex === 0
                             width: btnAll.width + Theme.fontSizeSmall
                             height: btnAll.height + Theme.fontSizeSmall + 8
+
+                            Rectangle {
+                                anchors.centerIn: btnAll
+                                width: btnAll.width + 8
+                                height: btnAll.height + 8
+                                radius: (btnAll.height + 8) / 2
+                                color: "transparent"
+                                border.width: parent.keyboardFocus ? 2 : 0
+                                border.color: Theme.primary
+                                z: -1
+                                opacity: parent.keyboardFocus ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.shortDuration } }
+                            }
 
                             DankActionButton {
                                 id: btnAll
@@ -383,10 +530,11 @@ Item {
                                 backgroundColor: parent.isActive ? Theme.primary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = ""
-                                Keys.onTabPressed: {
-                                    root.filterType = "";
+                                Keys.onTabPressed: event => {
+                                    root.advanceTab();
                                     event.accepted = true;
                                 }
+                                Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
                             }
 
                             Rectangle {
@@ -400,7 +548,6 @@ Item {
                                 opacity: parent.isActive ? 1.0 : 0
                             }
 
-                            // Count badge - matches groupedWorkspaceNumberContainer pattern
                             Item {
                                 visible: parent.itemCount > 0
                                 anchors {
@@ -418,17 +565,11 @@ Item {
                                     color: parent.parent.isActive ? Theme.primary : Theme.surfaceContainerHighest
                                     scale: parent.parent.parent.isActive ? 1.0 : 0.85
                                     Behavior on scale {
-                                        NumberAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.OutBack
-                                        }
+                                        NumberAnimation { duration: Theme.shortDuration; easing.type: Easing.OutBack }
                                     }
                                     Behavior on color {
                                         enabled: true
-                                        ColorAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.InOutCubic
-                                        }
+                                        ColorAnimation { duration: Theme.shortDuration; easing.type: Easing.InOutCubic }
                                     }
                                 }
 
@@ -436,7 +577,7 @@ Item {
                                     id: badgeAll
                                     anchors.centerIn: parent
                                     text: parent.parent.itemCount > 99 ? "99+" : parent.parent.itemCount
-                                    font.pixelSize: (typeof Style !== "undefined") ? Theme.fontSizeSmall * 0.75 : 8
+                                    font.pixelSize: Theme.fontSizeSmall * 0.75
                                     font.bold: true
                                     color: Theme.surfaceText
                                 }
@@ -453,22 +594,33 @@ Item {
                                 const all = pluginApi?.mainInstance?.items || [];
                                 return all.filter(i => (pluginApi?.mainInstance?.getItemType(i) || "Text") === "Text").length;
                             }
+                            readonly property bool keyboardFocus: categoryFocus.activeFocus && root.categoryIndex === 1
                             width: btnText.width + Theme.fontSizeSmall
                             height: btnText.height + Theme.fontSizeSmall + 8
+
+                            Rectangle {
+                                anchors.centerIn: btnText
+                                width: btnText.width + 8
+                                height: btnText.height + 8
+                                radius: (btnText.height + 8) / 2
+                                color: "transparent"
+                                border.width: parent.keyboardFocus ? 2 : 0
+                                border.color: Theme.primary
+                                z: -1
+                                opacity: parent.keyboardFocus ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.shortDuration } }
+                            }
 
                             DankActionButton {
                                 id: btnText
                                 anchors.centerIn: parent
-                                focus: true
                                 iconName: "format_align_left"
                                 tooltipText: pluginApi?.tr("panel.filter-text") || "Text"
                                 backgroundColor: parent.isActive ? Theme.primary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Text"
-                                Keys.onTabPressed: {
-                                    root.filterType = "Image";
-                                    event.accepted = true;
-                                }
+                                Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                                Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
                             }
 
                             Rectangle {
@@ -499,24 +651,18 @@ Item {
                                     color: parent.parent.isActive ? Theme.primary : Theme.surfaceContainerHighest
                                     scale: parent.parent.parent.isActive ? 1.0 : 0.85
                                     Behavior on scale {
-                                        NumberAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.OutBack
-                                        }
+                                        NumberAnimation { duration: Theme.shortDuration; easing.type: Easing.OutBack }
                                     }
                                     Behavior on color {
                                         enabled: true
-                                        ColorAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.InOutCubic
-                                        }
+                                        ColorAnimation { duration: Theme.shortDuration; easing.type: Easing.InOutCubic }
                                     }
                                 }
                                 StyledText {
                                     id: badgeText
                                     anchors.centerIn: parent
                                     text: parent.parent.itemCount > 99 ? "99+" : parent.parent.itemCount
-                                    font.pixelSize: (typeof Style !== "undefined") ? Theme.fontSizeSmall * 0.75 : 8
+                                    font.pixelSize: Theme.fontSizeSmall * 0.75
                                     font.bold: true
                                     color: Theme.surfaceText
                                 }
@@ -533,18 +679,33 @@ Item {
                                 const all = pluginApi?.mainInstance?.items || [];
                                 return all.filter(i => (pluginApi?.mainInstance?.getItemType(i) || "Text") === "Image").length;
                             }
+                            readonly property bool keyboardFocus: categoryFocus.activeFocus && root.categoryIndex === 2
                             width: btnImage.width + Theme.fontSizeSmall
                             height: btnImage.height + Theme.fontSizeSmall + 8
+
+                            Rectangle {
+                                anchors.centerIn: btnImage
+                                width: btnImage.width + 8
+                                height: btnImage.height + 8
+                                radius: (btnImage.height + 8) / 2
+                                color: "transparent"
+                                border.width: parent.keyboardFocus ? 2 : 0
+                                border.color: Theme.primary
+                                z: -1
+                                opacity: parent.keyboardFocus ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.shortDuration } }
+                            }
 
                             DankActionButton {
                                 id: btnImage
                                 anchors.centerIn: parent
-                                focus: true
                                 iconName: "image"
                                 tooltipText: pluginApi?.tr("panel.filter-images") || "Images"
                                 backgroundColor: parent.isActive ? Theme.secondary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Image"
+                                Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                                Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
                             }
 
                             Rectangle {
@@ -575,24 +736,18 @@ Item {
                                     color: parent.parent.isActive ? Theme.primary : Theme.surfaceContainerHighest
                                     scale: parent.parent.parent.isActive ? 1.0 : 0.85
                                     Behavior on scale {
-                                        NumberAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.OutBack
-                                        }
+                                        NumberAnimation { duration: Theme.shortDuration; easing.type: Easing.OutBack }
                                     }
                                     Behavior on color {
                                         enabled: true
-                                        ColorAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.InOutCubic
-                                        }
+                                        ColorAnimation { duration: Theme.shortDuration; easing.type: Easing.InOutCubic }
                                     }
                                 }
                                 StyledText {
                                     id: badgeImage
                                     anchors.centerIn: parent
                                     text: parent.parent.itemCount > 99 ? "99+" : parent.parent.itemCount
-                                    font.pixelSize: (typeof Style !== "undefined") ? Theme.fontSizeSmall * 0.75 : 8
+                                    font.pixelSize: Theme.fontSizeSmall * 0.75
                                     font.bold: true
                                     color: Theme.surfaceText
                                 }
@@ -609,18 +764,33 @@ Item {
                                 const all = pluginApi?.mainInstance?.items || [];
                                 return all.filter(i => (pluginApi?.mainInstance?.getItemType(i) || "Text") === "Color").length;
                             }
+                            readonly property bool keyboardFocus: categoryFocus.activeFocus && root.categoryIndex === 3
                             width: btnColorFilter.width + Theme.fontSizeSmall
                             height: btnColorFilter.height + Theme.fontSizeSmall + 8
+
+                            Rectangle {
+                                anchors.centerIn: btnColorFilter
+                                width: btnColorFilter.width + 8
+                                height: btnColorFilter.height + 8
+                                radius: (btnColorFilter.height + 8) / 2
+                                color: "transparent"
+                                border.width: parent.keyboardFocus ? 2 : 0
+                                border.color: Theme.primary
+                                z: -1
+                                opacity: parent.keyboardFocus ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.shortDuration } }
+                            }
 
                             DankActionButton {
                                 id: btnColorFilter
                                 anchors.centerIn: parent
-                                focus: true
                                 iconName: "palette"
                                 tooltipText: pluginApi?.tr("panel.filter-colors") || "Colors"
                                 backgroundColor: parent.isActive ? Theme.secondary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Color"
+                                Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                                Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
                             }
 
                             Rectangle {
@@ -651,24 +821,18 @@ Item {
                                     color: parent.parent.isActive ? Theme.primary : Theme.surfaceContainerHighest
                                     scale: parent.parent.parent.isActive ? 1.0 : 0.85
                                     Behavior on scale {
-                                        NumberAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.OutBack
-                                        }
+                                        NumberAnimation { duration: Theme.shortDuration; easing.type: Easing.OutBack }
                                     }
                                     Behavior on color {
                                         enabled: true
-                                        ColorAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.InOutCubic
-                                        }
+                                        ColorAnimation { duration: Theme.shortDuration; easing.type: Easing.InOutCubic }
                                     }
                                 }
                                 StyledText {
                                     id: badgeColorFilter
                                     anchors.centerIn: parent
                                     text: parent.parent.itemCount > 99 ? "99+" : parent.parent.itemCount
-                                    font.pixelSize: (typeof Style !== "undefined") ? Theme.fontSizeSmall * 0.75 : 8
+                                    font.pixelSize: Theme.fontSizeSmall * 0.75
                                     font.bold: true
                                     color: Theme.surfaceText
                                 }
@@ -685,18 +849,33 @@ Item {
                                 const all = pluginApi?.mainInstance?.items || [];
                                 return all.filter(i => (pluginApi?.mainInstance?.getItemType(i) || "Text") === "Link").length;
                             }
+                            readonly property bool keyboardFocus: categoryFocus.activeFocus && root.categoryIndex === 4
                             width: btnLink.width + Theme.fontSizeSmall
                             height: btnLink.height + Theme.fontSizeSmall + 8
+
+                            Rectangle {
+                                anchors.centerIn: btnLink
+                                width: btnLink.width + 8
+                                height: btnLink.height + 8
+                                radius: (btnLink.height + 8) / 2
+                                color: "transparent"
+                                border.width: parent.keyboardFocus ? 2 : 0
+                                border.color: Theme.primary
+                                z: -1
+                                opacity: parent.keyboardFocus ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.shortDuration } }
+                            }
 
                             DankActionButton {
                                 id: btnLink
                                 anchors.centerIn: parent
-                                focus: true
                                 iconName: "link"
                                 tooltipText: pluginApi?.tr("panel.filter-links") || "Links"
                                 backgroundColor: parent.isActive ? Theme.primary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Link"
+                                Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                                Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
                             }
 
                             Rectangle {
@@ -727,24 +906,18 @@ Item {
                                     color: parent.parent.isActive ? Theme.primary : Theme.surfaceContainerHighest
                                     scale: parent.parent.parent.isActive ? 1.0 : 0.85
                                     Behavior on scale {
-                                        NumberAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.OutBack
-                                        }
+                                        NumberAnimation { duration: Theme.shortDuration; easing.type: Easing.OutBack }
                                     }
                                     Behavior on color {
                                         enabled: true
-                                        ColorAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.InOutCubic
-                                        }
+                                        ColorAnimation { duration: Theme.shortDuration; easing.type: Easing.InOutCubic }
                                     }
                                 }
                                 StyledText {
                                     id: badgeLink
                                     anchors.centerIn: parent
                                     text: parent.parent.itemCount > 99 ? "99+" : parent.parent.itemCount
-                                    font.pixelSize: (typeof Style !== "undefined") ? Theme.fontSizeSmall * 0.75 : 8
+                                    font.pixelSize: Theme.fontSizeSmall * 0.75
                                     font.bold: true
                                     color: Theme.surfaceText
                                 }
@@ -761,18 +934,33 @@ Item {
                                 const all = pluginApi?.mainInstance?.items || [];
                                 return all.filter(i => (pluginApi?.mainInstance?.getItemType(i) || "Text") === "Code").length;
                             }
+                            readonly property bool keyboardFocus: categoryFocus.activeFocus && root.categoryIndex === 5
                             width: btnCode.width + Theme.fontSizeSmall
                             height: btnCode.height + Theme.fontSizeSmall + 8
+
+                            Rectangle {
+                                anchors.centerIn: btnCode
+                                width: btnCode.width + 8
+                                height: btnCode.height + 8
+                                radius: (btnCode.height + 8) / 2
+                                color: "transparent"
+                                border.width: parent.keyboardFocus ? 2 : 0
+                                border.color: Theme.primary
+                                z: -1
+                                opacity: parent.keyboardFocus ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.shortDuration } }
+                            }
 
                             DankActionButton {
                                 id: btnCode
                                 anchors.centerIn: parent
-                                focus: true
                                 iconName: "code"
                                 tooltipText: pluginApi?.tr("panel.filter-code") || "Code"
                                 backgroundColor: parent.isActive ? Theme.secondary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Code"
+                                Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                                Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
                             }
 
                             Rectangle {
@@ -803,24 +991,18 @@ Item {
                                     color: parent.parent.isActive ? Theme.primary : Theme.surfaceContainerHighest
                                     scale: parent.parent.parent.isActive ? 1.0 : 0.85
                                     Behavior on scale {
-                                        NumberAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.OutBack
-                                        }
+                                        NumberAnimation { duration: Theme.shortDuration; easing.type: Easing.OutBack }
                                     }
                                     Behavior on color {
                                         enabled: true
-                                        ColorAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.InOutCubic
-                                        }
+                                        ColorAnimation { duration: Theme.shortDuration; easing.type: Easing.InOutCubic }
                                     }
                                 }
                                 StyledText {
                                     id: badgeCode
                                     anchors.centerIn: parent
                                     text: parent.parent.itemCount > 99 ? "99+" : parent.parent.itemCount
-                                    font.pixelSize: (typeof Style !== "undefined") ? Theme.fontSizeSmall * 0.75 : 8
+                                    font.pixelSize: Theme.fontSizeSmall * 0.75
                                     font.bold: true
                                     color: Theme.surfaceText
                                 }
@@ -837,18 +1019,33 @@ Item {
                                 const all = pluginApi?.mainInstance?.items || [];
                                 return all.filter(i => (pluginApi?.mainInstance?.getItemType(i) || "Text") === "Emoji").length;
                             }
+                            readonly property bool keyboardFocus: categoryFocus.activeFocus && root.categoryIndex === 6
                             width: btnEmoji.width + Theme.fontSizeSmall
                             height: btnEmoji.height + Theme.fontSizeSmall + 8
+
+                            Rectangle {
+                                anchors.centerIn: btnEmoji
+                                width: btnEmoji.width + 8
+                                height: btnEmoji.height + 8
+                                radius: (btnEmoji.height + 8) / 2
+                                color: "transparent"
+                                border.width: parent.keyboardFocus ? 2 : 0
+                                border.color: Theme.primary
+                                z: -1
+                                opacity: parent.keyboardFocus ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.shortDuration } }
+                            }
 
                             DankActionButton {
                                 id: btnEmoji
                                 anchors.centerIn: parent
-                                focus: true
                                 iconName: "sentiment_satisfied"
                                 tooltipText: pluginApi?.tr("panel.filter-emoji") || "Emoji"
                                 backgroundColor: parent.isActive ? Theme.primary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Emoji"
+                                Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                                Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
                             }
 
                             Rectangle {
@@ -879,24 +1076,18 @@ Item {
                                     color: parent.parent.isActive ? Theme.primary : Theme.surfaceContainerHighest
                                     scale: parent.parent.parent.isActive ? 1.0 : 0.85
                                     Behavior on scale {
-                                        NumberAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.OutBack
-                                        }
+                                        NumberAnimation { duration: Theme.shortDuration; easing.type: Easing.OutBack }
                                     }
                                     Behavior on color {
                                         enabled: true
-                                        ColorAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.InOutCubic
-                                        }
+                                        ColorAnimation { duration: Theme.shortDuration; easing.type: Easing.InOutCubic }
                                     }
                                 }
                                 StyledText {
                                     id: badgeEmoji
                                     anchors.centerIn: parent
                                     text: parent.parent.itemCount > 99 ? "99+" : parent.parent.itemCount
-                                    font.pixelSize: (typeof Style !== "undefined") ? Theme.fontSizeSmall * 0.75 : 8
+                                    font.pixelSize: Theme.fontSizeSmall * 0.75
                                     font.bold: true
                                     color: Theme.surfaceText
                                 }
@@ -913,18 +1104,33 @@ Item {
                                 const all = pluginApi?.mainInstance?.items || [];
                                 return all.filter(i => (pluginApi?.mainInstance?.getItemType(i) || "Text") === "File").length;
                             }
+                            readonly property bool keyboardFocus: categoryFocus.activeFocus && root.categoryIndex === 7
                             width: btnFile.width + Theme.fontSizeSmall
                             height: btnFile.height + Theme.fontSizeSmall + 8
+
+                            Rectangle {
+                                anchors.centerIn: btnFile
+                                width: btnFile.width + 8
+                                height: btnFile.height + 8
+                                radius: (btnFile.height + 8) / 2
+                                color: "transparent"
+                                border.width: parent.keyboardFocus ? 2 : 0
+                                border.color: Theme.primary
+                                z: -1
+                                opacity: parent.keyboardFocus ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.shortDuration } }
+                            }
 
                             DankActionButton {
                                 id: btnFile
                                 anchors.centerIn: parent
-                                focus: true
                                 iconName: "description"
                                 tooltipText: pluginApi?.tr("panel.filter-files") || "Files"
                                 backgroundColor: parent.isActive ? Theme.secondary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "File"
+                                Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                                Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
                             }
 
                             Rectangle {
@@ -955,30 +1161,25 @@ Item {
                                     color: parent.parent.isActive ? Theme.primary : Theme.surfaceContainerHighest
                                     scale: parent.parent.parent.isActive ? 1.0 : 0.85
                                     Behavior on scale {
-                                        NumberAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.OutBack
-                                        }
+                                        NumberAnimation { duration: Theme.shortDuration; easing.type: Easing.OutBack }
                                     }
                                     Behavior on color {
                                         enabled: true
-                                        ColorAnimation {
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.InOutCubic
-                                        }
+                                        ColorAnimation { duration: Theme.shortDuration; easing.type: Easing.InOutCubic }
                                     }
                                 }
                                 StyledText {
                                     id: badgeFile
                                     anchors.centerIn: parent
                                     text: parent.parent.itemCount > 99 ? "99+" : parent.parent.itemCount
-                                    font.pixelSize: (typeof Style !== "undefined") ? Theme.fontSizeSmall * 0.75 : 8
+                                    font.pixelSize: Theme.fontSizeSmall * 0.75
                                     font.bold: true
                                     color: Theme.surfaceText
                                 }
                             }
                         }
-                    }
+                        } // End filter RowLayout
+                    } // End categoryFocus
 
                     Rectangle {
                         Layout.preferredWidth: 1
@@ -996,7 +1197,7 @@ Item {
                         Layout.topMargin: -2 * 1
                         onClicked: pluginApi?.mainInstance?.wipeAll()
                     }
-                }
+                } // End header RowLayout
 
                 ListView {
                     id: listView
@@ -1021,9 +1222,7 @@ Item {
 
                     model: root.filteredItems
 
-                    Keys.onUpPressed: {
-                        searchInput.forceActiveFocus();
-                    }
+                    Keys.onUpPressed: { searchInput.forceActiveFocus(); }
                     Keys.onLeftPressed: {
                         if (count > 0) {
                             root.selectedIndex = Math.max(0, root.selectedIndex - 1);
@@ -1051,6 +1250,7 @@ Item {
                             }
                         }
                     }
+                    Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
                     Keys.onDeletePressed: {
                         if (count > 0 && root.selectedIndex >= 0 && root.selectedIndex < count) {
                             const item = root.filteredItems[root.selectedIndex];
@@ -1067,20 +1267,7 @@ Item {
                             root.pluginApi.closePanel(screen);
                         }
                     }
-                    Keys.onTabPressed: {
-                        // Cycle through filters: All -> Text -> Image -> Color -> Link -> Code -> Emoji -> File -> All
-                        const filters = ["", "Text", "Image", "Color", "Link", "Code", "Emoji", "File"];
-                        const currentIdx = filters.indexOf(root.filterType);
-                        const nextIdx = (currentIdx + 1) % filters.length;
-                        root.filterType = filters[nextIdx];
-                    }
-                    Keys.onBacktabPressed: {
-                        // Shift+Tab = cycle backwards
-                        const filters = ["", "Text", "Image", "Color", "Link", "Code", "Emoji", "File"];
-                        const currentIdx = filters.indexOf(root.filterType);
-                        const prevIdx = (currentIdx - 1 + filters.length) % filters.length;
-                        root.filterType = filters[prevIdx];
-                    }
+                    Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
                     Keys.onPressed: event => {
                         if (event.key >= Qt.Key_0 && event.key <= Qt.Key_9) {
                             const filterMap = {
@@ -1109,7 +1296,6 @@ Item {
                         selected: index === root.selectedIndex
                         enableTodoIntegration: pluginApi?.pluginSettings?.todoEnabled ?? true
                         isPinned: {
-                            // Force re-evaluation when pinnedRevision changes
                             const rev = root.pluginApi?.mainInstance?.pinnedRevision || 0;
                             const pinnedItems = root.pluginApi?.mainInstance?.pinnedItems || [];
                             return pinnedItems.some(p => p.id === clipboardId);
@@ -1141,9 +1327,7 @@ Item {
                             }
                         }
 
-                        onDeleteClicked: {
-                            root.pluginApi?.mainInstance?.deleteById(clipboardId);
-                        }
+                        onDeleteClicked: { root.pluginApi?.mainInstance?.deleteById(clipboardId); }
 
                         onPinClicked: {
                             if (isPinned) {
@@ -1162,7 +1346,6 @@ Item {
 
                         onAddToTodoClicked: {
                             if (preview) {
-                                // Direct call to Main.qml function (no internal IPC)
                                 root.pluginApi?.mainInstance?.addTodoWithText(preview.substring(0, 200), 0);
                             }
                         }
@@ -1171,12 +1354,14 @@ Item {
                     StyledText {
                         anchors.centerIn: parent
                         visible: listView.count === 0
-                        text: root.filterType || root.searchText ? (pluginApi?.tr("panel.no-matches") || "No matching items") : (pluginApi?.tr("panel.empty") || "Clipboard is empty")
+                        text: root.filterType || root.searchText
+                            ? (pluginApi?.tr("panel.no-matches") || "No matching items")
+                            : (pluginApi?.tr("panel.empty") || "Clipboard is empty")
                         color: Theme.surfaceVariantText
                     }
-                }
-            }
-        }  // End clipboardPanel
+                } // End ListView
+            } // End ColumnLayout
+        } // End clipboardPanel
 
         // PINNED PANEL - Left side, vertical
         Rectangle {
@@ -1191,13 +1376,14 @@ Item {
             width: Math.min(300, screen?.width * 0.2 || 300)
             color: Theme.withAlpha(Theme.surfaceContainerHigh, Math.max(0.2, Math.min(1.0, (pluginApi?.pluginSettings?.panelOpacityPinned ?? 100) / 100)))
             radius: Theme.cornerRadius
-            opacity: 1.0  // Override global panel opacity
+            opacity: 1.0
 
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: Theme.spacingL
                 spacing: Theme.spacingM
 
+                // Pinned header
                 Item {
                     implicitHeight: pinnedHeaderColumn.implicitHeight
                     Layout.fillWidth: true
@@ -1229,107 +1415,153 @@ Item {
                                 Layout.alignment: Qt.AlignVCenter
                             }
 
-                            Item {
-                                Layout.fillWidth: true
-                            }
+                            Item { Layout.fillWidth: true }
                         }
                     }
                 }
 
-                ListView {
-                    id: pinnedListView
+                // Pinned list + empty label wrapped together
+                Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     visible: pinnedPanel.showPinned
-                    orientation: ListView.Vertical
-                    spacing: Theme.spacingS
-                    clip: true
 
-                    model: root.pluginApi?.mainInstance?.pinnedItems || []
-                    property bool hoverScroll: false
-
-                    ScrollBar.vertical: ScrollBar {
-                        id: pinnedScrollBar
-                        policy: ScrollBar.AsNeeded
-                        visible: pinnedListView.contentHeight > pinnedListView.height
-                        width: 6
-                        minimumSize: 0.1
-                        opacity: (hovered || pressed) ? 1.0 : 0.0
-                        Behavior on opacity {
-                            NumberAnimation { duration: Theme.shortDuration }
-                        }
-                        contentItem: Rectangle {
-                            radius: width / 2
-                            color: Theme.primary
-                            opacity: parent.pressed ? 0.9 : (parent.hovered ? 0.75 : 0.5)
-                        }
-                        background: Rectangle {
-                            radius: width / 2
-                            color: Theme.surfaceContainerHighest
-                            opacity: 0.4
-                        }
-                    }
-
-                    delegate: ClipboardCard {
-                        width: pinnedListView.width
-                        panelRoot: root
-                        clipboardItem: {
-                            return {
-                                "id": modelData.id,
-                                "preview": modelData.isImage ? "" : modelData.preview  // Don't show binary preview
-                                ,
-                                "mime": modelData.mime || "text/plain",
-                                "isImage": modelData.isImage || false,
-                                "content": modelData.content || ""  // For images, this is data URL
-                            };
-                        }
-                        isPinned: true
-                        pluginApi: root.pluginApi
-                        screen: root.currentScreen
-                        selected: false
-                        pinnedImageDataUrl: modelData.isImage ? modelData.content : ""  // Pass data URL directly
-
-                        onClicked: {
-                            root.pluginApi?.mainInstance?.copyPinnedToClipboard(modelData.id);
-                            if (root.pluginApi) {
-                                root.pluginApi.closePanel(screen);
-                                const autoPaste = root.pluginApi.pluginSettings?.autoPasteOnClick ?? false;
-                                const rmbOnly = root.pluginApi.pluginSettings?.autoPasteOnRightClick ?? false;
-                                if (autoPaste && !rmbOnly) {
-                                    root.pluginApi.mainInstance?.triggerAutoPaste();
+                    FocusScope {
+                        id: pinnedFocus
+                        anchors.fill: parent
+                        Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                        Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
+                        onActiveFocusChanged: {
+                            if (activeFocus) {
+                                if (pinnedListView.currentIndex < 0 && pinnedListView.count > 0) {
+                                    pinnedListView.currentIndex = 0;
                                 }
+                                pinnedListView.forceActiveFocus();
                             }
                         }
 
-                        onRightClicked: {
-                            const autoPaste = root.pluginApi?.pluginSettings?.autoPasteOnClick ?? false;
-                            const rmbOnly = root.pluginApi?.pluginSettings?.autoPasteOnRightClick ?? false;
-                            if (autoPaste && rmbOnly) {
-                                root.pluginApi?.mainInstance?.copyPinnedToClipboard(modelData.id);
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: 2
+                            radius: Theme.cornerRadius
+                            color: "transparent"
+                            border.width: pinnedFocus.activeFocus ? 1 : 0
+                            border.color: Theme.outlineVariant
+                            opacity: pinnedFocus.activeFocus ? 0.5 : 0
+                            z: 2
+                            Behavior on opacity { NumberAnimation { duration: Theme.shortDuration } }
+                        }
+
+                        ListView {
+                            id: pinnedListView
+                            anchors.fill: parent
+                            orientation: ListView.Vertical
+                            spacing: Theme.spacingS
+                            clip: true
+                            focus: true
+                            activeFocusOnTab: true
+                            keyNavigationWraps: true
+                            Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                            Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
+                            Keys.onReturnPressed: {
+                                if (currentIndex < 0 || currentIndex >= count) return;
+                                const item = model[currentIndex];
+                                if (!item) return;
+                                root.pluginApi?.mainInstance?.copyPinnedToClipboard(item.id);
                                 if (root.pluginApi) {
                                     root.pluginApi.closePanel(screen);
-                                    root.pluginApi.mainInstance?.triggerAutoPaste();
+                                    const enterPaste = root.pluginApi?.pluginSettings?.autoPasteOnEnterSelect ?? false;
+                                    if (enterPaste) {
+                                        root.pluginApi.mainInstance?.triggerAutoPaste();
+                                    }
                                 }
                             }
-                        }
+                            model: root.pluginApi?.mainInstance?.pinnedItems || []
 
-                        onPinClicked: {
-                            root.pluginApi?.mainInstance?.unpinItem(modelData.id);
-                            ToastService.showInfo("Item unpinned");
-                        }
+                            ScrollBar.vertical: ScrollBar {
+                                id: pinnedScrollBar
+                                policy: ScrollBar.AsNeeded
+                                visible: pinnedListView.contentHeight > pinnedListView.height
+                                width: 6
+                                minimumSize: 0.1
+                                opacity: (hovered || pressed) ? 1.0 : 0.0
+                                Behavior on opacity {
+                                    NumberAnimation { duration: Theme.shortDuration }
+                                }
+                                contentItem: Rectangle {
+                                    radius: width / 2
+                                    color: Theme.primary
+                                    opacity: parent.pressed ? 0.9 : (parent.hovered ? 0.75 : 0.5)
+                                }
+                                background: Rectangle {
+                                    radius: width / 2
+                                    color: Theme.surfaceContainerHighest
+                                    opacity: 0.4
+                                }
+                            }
 
-                        onDeleteClicked: {
-                            root.pluginApi?.mainInstance?.unpinItem(modelData.id);
-                        }
-                    }
+                            delegate: ClipboardCard {
+                                width: pinnedListView.width
+                                panelRoot: root
+                                clipboardItem: {
+                                    return {
+                                        "id": modelData.id,
+                                        "preview": modelData.isImage ? "" : modelData.preview,
+                                        "mime": modelData.mime || "text/plain",
+                                        "isImage": modelData.isImage || false,
+                                        "content": modelData.content || ""
+                                    };
+                                }
+                                isPinned: true
+                                pluginApi: root.pluginApi
+                                screen: root.currentScreen
+                                selected: pinnedFocus.activeFocus && pinnedListView.currentIndex === index
+                                pinnedImageDataUrl: modelData.isImage ? modelData.content : ""
 
-                    StyledText {
-                        anchors.centerIn: parent
-                        visible: pinnedListView.count === 0
-                        text: "No pinned items"
-                        color: Theme.surfaceVariantText
-                    }
-                }
+                                onClicked: {
+                                    root.pluginApi?.mainInstance?.copyPinnedToClipboard(modelData.id);
+                                    if (root.pluginApi) {
+                                        root.pluginApi.closePanel(screen);
+                                        const autoPaste = root.pluginApi.pluginSettings?.autoPasteOnClick ?? false;
+                                        const rmbOnly = root.pluginApi.pluginSettings?.autoPasteOnRightClick ?? false;
+                                        if (autoPaste && !rmbOnly) {
+                                            root.pluginApi.mainInstance?.triggerAutoPaste();
+                                        }
+                                    }
+                                }
+
+                                onRightClicked: {
+                                    const autoPaste = root.pluginApi?.pluginSettings?.autoPasteOnClick ?? false;
+                                    const rmbOnly = root.pluginApi?.pluginSettings?.autoPasteOnRightClick ?? false;
+                                    if (autoPaste && rmbOnly) {
+                                        root.pluginApi?.mainInstance?.copyPinnedToClipboard(modelData.id);
+                                        if (root.pluginApi) {
+                                            root.pluginApi.closePanel(screen);
+                                            root.pluginApi.mainInstance?.triggerAutoPaste();
+                                        }
+                                    }
+                                }
+
+                                onPinClicked: {
+                                    root.pluginApi?.mainInstance?.unpinItem(modelData.id);
+                                    ToastService.showInfo("Item unpinned");
+                                }
+
+                                onDeleteClicked: {
+                                    root.pluginApi?.mainInstance?.unpinItem(modelData.id);
+                                }
+                            }
+
+                            // Empty state label - correctly placed inside ListView
+                            StyledText {
+                                anchors.centerIn: parent
+                                visible: pinnedListView.count === 0
+                                text: pluginApi?.tr("panel.no-pinned") || "No pinned items"
+                                color: Theme.surfaceVariantText
+                            }
+                        } // End pinnedListView
+                    } // End pinnedFocus
+                } // End pinned Item wrapper
 
                 Rectangle {
                     Layout.fillWidth: true
@@ -1339,7 +1571,7 @@ Item {
                     visible: pinnedPanel.showPinned && pinnedPanel.showTodo
                 }
 
-                // ToDo section (stored in plugin settings)
+                // ToDo section
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -1365,8 +1597,7 @@ Item {
                                     const todos = root.pluginApi?.mainInstance?.todos || [];
                                     let done = 0;
                                     for (let i = 0; i < todos.length; i++) {
-                                        if (todos[i].completed)
-                                            done++;
+                                        if (todos[i].completed) done++;
                                     }
                                     return done + " / " + todos.length;
                                 }
@@ -1378,118 +1609,158 @@ Item {
                             Item { Layout.fillWidth: true }
                         }
 
-                        ListView {
-                            id: todoListView
+                        FocusScope {
+                            id: todoFocus
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            spacing: Theme.spacingXS
-                            clip: true
-                            model: root.pluginApi?.mainInstance?.todos || []
-                            property int scrollGutter: Theme.spacingS
-                            ScrollBar.vertical: ScrollBar {
-                                id: todoScrollBar
-                                policy: ScrollBar.AsNeeded
-                                visible: todoListView.contentHeight > todoListView.height
-                                width: 6
-                                minimumSize: 0.1
-                                contentItem: Rectangle {
-                                    radius: width / 2
-                                    color: Theme.primary
-                                    opacity: parent.pressed ? 0.9 : (parent.hovered ? 0.75 : 0.5)
-                                }
-                                background: Rectangle {
-                                    radius: width / 2
-                                    color: Theme.surfaceContainerHighest
-                                    opacity: 0.4
+                            Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                            Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
+                            onActiveFocusChanged: {
+                                if (activeFocus) {
+                                    if (todoListView.currentIndex < 0 && todoListView.count > 0) {
+                                        todoListView.currentIndex = 0;
+                                    }
+                                    todoListView.forceActiveFocus();
                                 }
                             }
 
-                            delegate: Item {
-                                width: todoListView.width - (todoScrollBar.visible ? (todoScrollBar.width + todoListView.scrollGutter) : 0)
-                                property int iconSize: 16
-                                property int buttonSize: 22
-                                property int innerPadding: Theme.spacingXS
-                                property int rowSpacing: Theme.spacingS
-                                property int rightGutter: Theme.spacingM
-                                property bool isHover: todoHoverArea.containsMouse
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.margins: 2
+                                radius: Theme.cornerRadius
+                                color: "transparent"
+                                border.width: todoFocus.activeFocus ? 1 : 0
+                                border.color: Theme.outlineVariant
+                                opacity: todoFocus.activeFocus ? 0.5 : 0
+                                z: 2
+                                Behavior on opacity { NumberAnimation { duration: Theme.shortDuration } }
+                            }
 
-                                implicitHeight: todoCard.height
+                            ListView {
+                                id: todoListView
+                                anchors.fill: parent
+                                spacing: Theme.spacingXS
+                                clip: true
+                                focus: true
+                                activeFocusOnTab: true
+                                keyNavigationWraps: true
+                                Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
+                                Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
+                                Keys.onReturnPressed: {
+                                    if (currentIndex < 0 || currentIndex >= count) return;
+                                    const item = model[currentIndex];
+                                    if (item) root.pluginApi?.mainInstance?.toggleTodo(item.id);
+                                }
+                                model: root.pluginApi?.mainInstance?.todos || []
+                                property int scrollGutter: Theme.spacingS
 
-                                Rectangle {
-                                    id: todoCard
-                                    width: parent.width
-                                    height: Math.max(40, todoText.implicitHeight + innerPadding * 2)
-                                    radius: Theme.cornerRadius / 2
-                                    color: isHover ? Qt.lighter(Theme.surfaceContainer, 1.08) : Theme.surfaceContainer
-                                    border.width: isHover ? 1 : 0
-                                    border.color: Theme.outline
-
-                                    Row {
-                                        id: contentRow
-                                        anchors.fill: parent
-                                        anchors.margins: innerPadding
-                                        spacing: rowSpacing
-
-                                        DankIcon {
-                                            id: todoCheck
-                                            width: iconSize
-                                            height: iconSize
-                                            name: modelData.completed ? "check_circle" : "radio_button_unchecked"
-                                            size: iconSize
-                                            color: modelData.completed ? Theme.primary : Theme.surfaceVariantText
-                                        }
-
-                                        StyledText {
-                                            id: todoText
-                                            width: Math.max(0, parent.width - todoCheck.width - (modelData.completed ? buttonSize : 0) - rowSpacing * 2 - rightGutter)
-                                            text: modelData.text || ""
-                                            color: Theme.surfaceText
-                                            wrapMode: Text.WordWrap
-                                            elide: Text.ElideNone
-                                        }
-
-                                        DankActionButton {
-                                            id: todoDeleteButton
-                                            visible: modelData.completed
-                                            width: buttonSize
-                                            height: buttonSize
-                                            iconName: "delete"
-                                            iconColor: Theme.surfaceVariantText
-                                            backgroundColor: "transparent"
-                                            tooltipText: "Delete"
-                                            onClicked: root.pluginApi?.mainInstance?.deleteTodo(modelData.id)
-                                        }
-
-                                        Item {
-                                            width: rightGutter
-                                            height: 1
-                                        }
+                                ScrollBar.vertical: ScrollBar {
+                                    id: todoScrollBar
+                                    policy: ScrollBar.AsNeeded
+                                    visible: todoListView.contentHeight > todoListView.height
+                                    width: 6
+                                    minimumSize: 0.1
+                                    contentItem: Rectangle {
+                                        radius: width / 2
+                                        color: Theme.primary
+                                        opacity: parent.pressed ? 0.9 : (parent.hovered ? 0.75 : 0.5)
                                     }
-
-                                    MouseArea {
-                                        id: todoHoverArea
-                                        anchors.left: parent.left
-                                        anchors.top: parent.top
-                                        anchors.bottom: parent.bottom
-                                        width: todoDeleteButton.visible ? (todoCard.width - buttonSize - rowSpacing) : todoCard.width
-                                        hoverEnabled: true
-                                        onClicked: root.pluginApi?.mainInstance?.toggleTodo(modelData.id)
+                                    background: Rectangle {
+                                        radius: width / 2
+                                        color: Theme.surfaceContainerHighest
+                                        opacity: 0.4
                                     }
                                 }
 
-                            }
+                                delegate: Item {
+                                    width: todoListView.width - (todoScrollBar.visible ? (todoScrollBar.width + todoListView.scrollGutter) : 0)
+                                    property int iconSize: 16
+                                    property int buttonSize: 22
+                                    property int innerPadding: Theme.spacingXS
+                                    property int rowSpacing: Theme.spacingS
+                                    property int rightGutter: Theme.spacingM
+                                    property bool isHover: todoHoverArea.containsMouse
+                                    property bool isCurrent: ListView.isCurrentItem
 
-                            StyledText {
-                                anchors.centerIn: parent
-                                visible: todoListView.count === 0
-                                text: pluginApi?.tr("panel.no-todos") || "No todos yet"
-                                color: Theme.surfaceVariantText
-                            }
-                        }
-                    }
-                }
-            }
-        }  // End pinnedPanel & todo
+                                    implicitHeight: todoCard.height
+
+                                    Rectangle {
+                                        id: todoCard
+                                        width: parent.width
+                                        height: Math.max(40, todoText.implicitHeight + innerPadding * 2)
+                                        radius: Theme.cornerRadius / 2
+                                        color: isHover
+                                            ? Qt.lighter(Theme.surfaceContainer, 1.08)
+                                            : (isCurrent && todoFocus.activeFocus ? Qt.lighter(Theme.surfaceContainer, 1.12) : Theme.surfaceContainer)
+                                        border.width: (isHover || (isCurrent && todoFocus.activeFocus)) ? 1 : 0
+                                        border.color: Theme.outline
+
+                                        Row {
+                                            id: contentRow
+                                            anchors.fill: parent
+                                            anchors.margins: innerPadding
+                                            spacing: rowSpacing
+
+                                            DankIcon {
+                                                id: todoCheck
+                                                width: iconSize
+                                                height: iconSize
+                                                name: modelData.completed ? "check_circle" : "radio_button_unchecked"
+                                                size: iconSize
+                                                color: modelData.completed ? Theme.primary : Theme.surfaceVariantText
+                                            }
+
+                                            StyledText {
+                                                id: todoText
+                                                width: Math.max(0, parent.width - todoCheck.width - (modelData.completed ? buttonSize : 0) - rowSpacing * 2 - rightGutter)
+                                                text: modelData.text || ""
+                                                color: Theme.surfaceText
+                                                wrapMode: Text.WordWrap
+                                                elide: Text.ElideNone
+                                            }
+
+                                            DankActionButton {
+                                                id: todoDeleteButton
+                                                visible: modelData.completed
+                                                width: buttonSize
+                                                height: buttonSize
+                                                iconName: "delete"
+                                                iconColor: Theme.surfaceVariantText
+                                                backgroundColor: "transparent"
+                                                tooltipText: "Delete"
+                                                onClicked: root.pluginApi?.mainInstance?.deleteTodo(modelData.id)
+                                            }
+
+                                            Item {
+                                                width: rightGutter
+                                                height: 1
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: todoHoverArea
+                                            anchors.left: parent.left
+                                            anchors.top: parent.top
+                                            anchors.bottom: parent.bottom
+                                            width: todoDeleteButton.visible ? (todoCard.width - buttonSize - rowSpacing) : todoCard.width
+                                            hoverEnabled: true
+                                            onClicked: root.pluginApi?.mainInstance?.toggleTodo(modelData.id)
+                                        }
+                                    }
+                                } // End todo delegate
+
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    visible: todoListView.count === 0
+                                    text: pluginApi?.tr("panel.no-todos") || "No todos yet"
+                                    color: Theme.surfaceVariantText
+                                }
+                            } // End todoListView
+                        } // End todoFocus
+                    } // End todo ColumnLayout
+                } // End todo Item
+            } // End pinnedPanel ColumnLayout
+        } // End pinnedPanel
 
         // Vertical separator between pinned and notecards
         Rectangle {
@@ -1533,8 +1804,8 @@ Item {
                 pluginApi: root.pluginApi
                 screen: root.currentScreen
             }
-        }  // End noteCardsPanel
-    }  // End mainContainer
+        } // End noteCardsPanel
+    } // End mainContainer
 
     Component.onCompleted: {
         selectedIndex = 0;

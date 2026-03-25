@@ -35,6 +35,7 @@ PluginComponent {
     property int backgroundOpacity: pluginData.backgroundOpacity !== undefined ? pluginData.backgroundOpacity : panelDimOpacity
     property bool showPanelSeparator: pluginData.showPanelSeparator !== undefined ? pluginData.showPanelSeparator : true
     property bool enableAnimations: pluginData.enableAnimations !== undefined ? pluginData.enableAnimations : true
+    property bool enableTabNavigation: pluginData.enableTabNavigation !== undefined ? pluginData.enableTabNavigation : true
 
     function screenKey(screen) {
         return screen?.name || "default"
@@ -141,6 +142,7 @@ PluginComponent {
         property int backgroundOpacity: root.backgroundOpacity
         property bool showPanelSeparator: root.showPanelSeparator
         property bool enableAnimations: root.enableAnimations
+        property bool enableTabNavigation: root.enableTabNavigation
         property bool closeOnOutsideClick: root.closeOnOutsideClick
     }
 
