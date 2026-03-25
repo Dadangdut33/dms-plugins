@@ -34,6 +34,7 @@ PluginComponent {
     property int panelOpacityClipboard: pluginData.panelOpacityClipboard !== undefined ? pluginData.panelOpacityClipboard : 100
     property int backgroundOpacity: pluginData.backgroundOpacity !== undefined ? pluginData.backgroundOpacity : panelDimOpacity
     property bool showPanelSeparator: pluginData.showPanelSeparator !== undefined ? pluginData.showPanelSeparator : true
+    property bool enableAnimations: pluginData.enableAnimations !== undefined ? pluginData.enableAnimations : true
 
     function screenKey(screen) {
         return screen?.name || "default"
@@ -63,13 +64,13 @@ PluginComponent {
             // Close other panels when opening on a new screen
             for (const name in panelByName) {
                 if (name !== key && panelByName[name]) {
-                    panelByName[name].visible = false
+                    panelByName[name].setOpen(false)
                 }
             }
         }
         const panel = panelByName[key]
         if (panel) {
-            panel.visible = visible
+            panel.setOpen(visible)
         }
     }
 
@@ -139,6 +140,7 @@ PluginComponent {
         property int panelOpacityClipboard: root.panelOpacityClipboard
         property int backgroundOpacity: root.backgroundOpacity
         property bool showPanelSeparator: root.showPanelSeparator
+        property bool enableAnimations: root.enableAnimations
         property bool closeOnOutsideClick: root.closeOnOutsideClick
     }
 
@@ -203,6 +205,7 @@ PluginComponent {
 
             screen: modelData
             visible: false
+            property bool open: false
             color: "transparent"
 
             anchors {
@@ -237,11 +240,38 @@ PluginComponent {
                 }
             }
 
+            function setOpen(state) {
+                if (state) {
+                    open = true;
+                    visible = true;
+                    if (closeTimer.running) closeTimer.stop();
+                } else {
+                    open = false;
+                    if (panelContent.animationsEnabled) {
+                        closeTimer.restart();
+                    } else {
+                        visible = false;
+                    }
+                }
+            }
+
+            Timer {
+                id: closeTimer
+                interval: 200
+                repeat: false
+                onTriggered: {
+                    if (!panelWindow.open) {
+                        panelWindow.visible = false;
+                    }
+                }
+            }
+
             Panel {
                 id: panelContent
                 anchors.fill: parent
                 pluginApi: clipboardPlusApi
                 screen: panelWindow.screen
+                panelOpen: panelWindow.open
             }
         }
     }

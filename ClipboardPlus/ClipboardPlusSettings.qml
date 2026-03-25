@@ -61,6 +61,13 @@ PluginSettings {
             }
 
             ToggleSetting {
+                settingKey: "enableAnimations"
+                label: "Enable Animations"
+                description: "Animate panel open/close"
+                defaultValue: true
+            }
+
+            ToggleSetting {
                 settingKey: "showBarWidget"
                 label: "Show Bar Widget"
                 description: "Display the ClipBoard+ icon in the bar"

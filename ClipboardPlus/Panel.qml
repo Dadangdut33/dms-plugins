@@ -14,6 +14,20 @@ Item {
     // Plugin API (injected by PluginPanelSlot)
     property var pluginApi: null
     property var screen: null
+    property bool panelOpen: true
+    property bool animationsEnabled: pluginApi?.pluginSettings?.enableAnimations ?? true
+    property real openProgress: panelOpen ? 1 : 0
+
+    Behavior on openProgress {
+        enabled: animationsEnabled
+        NumberAnimation {
+            duration: 200
+            easing.type: Theme.emphasizedEasing
+        }
+    }
+
+    opacity: animationsEnabled ? openProgress : 1
+    scale: animationsEnabled ? (0.98 + 0.02 * openProgress) : 1
 
     // Screen context - store reference for child components
     property var currentScreen: screen
