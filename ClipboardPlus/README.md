@@ -15,7 +15,7 @@ Ported / inspired from [clipper in noctalia-shell](https://noctalia.dev/plugins/
 
 ## Notes
 
-- Uses `cliphist`, `wl-copy`, and `wl-paste`.
+- Uses `cliphist`, `wl-copy`, and `wl-paste`. Requires `cliphist` and `wl-clipboard` to be installed.
 - Default config / state data stored under `~/.config/dms-clipboardPlus`.
 
 ## Usage Notes
