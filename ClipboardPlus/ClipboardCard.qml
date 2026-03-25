@@ -36,6 +36,20 @@ Rectangle {
     }
     readonly property bool isFile: !isImage && !isColor && !isLink && !isCode && !isEmoji && preview && /^(\/|~|file:\/\/)/.test(preview.trim())
     readonly property bool isText: !isImage && !isColor && !isLink && !isCode && !isEmoji && !isFile
+    readonly property string displayText: {
+        const decodeEnabled = pluginApi?.pluginSettings?.enableFullTextDecode ?? false;
+        if (!decodeEnabled) return (preview || "");
+        const _rev = pluginApi?.mainInstance?.decodedRevision || 0;
+        const full = decodeEnabled && pluginApi?.mainInstance?.getDecodedText
+            ? pluginApi.mainInstance.getDecodedText(clipboardId)
+            : "";
+        const base = (full && full.length > 0) ? full : (preview || "");
+        const limit = pluginApi?.pluginSettings?.maxDecodedTextLength ?? 250;
+        if (decodeEnabled && limit && base.length > limit) {
+            return base.slice(0, limit) + "…";
+        }
+        return base;
+    }
 
     readonly property string colorValue: {
         if (!isColor || !preview)
@@ -291,12 +305,12 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                text: root.preview || ""
+                text: root.displayText
                 wrapMode: Text.Wrap
-                elide: root.expandToContent ? Text.ElideNone : Text.ElideRight
                 color: root.accentFgColor
                 font.pixelSize: 11
                 verticalAlignment: Text.AlignTop
+                elide: Text.ElideRight
             }
 
             // Measurement text — width bound to root.bodyWidth, not bodyItem.width,
@@ -304,7 +318,7 @@ Rectangle {
             Text {
                 id: previewMeasure
                 visible: false
-                text: root.preview || ""
+                text: root.displayText
                 wrapMode: Text.Wrap
                 font.pixelSize: previewText.font.pixelSize
                 font.family: previewText.font.family

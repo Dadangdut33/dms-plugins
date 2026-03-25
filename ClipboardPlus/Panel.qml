@@ -1314,6 +1314,34 @@ Item {
 
                     model: root.filteredItems
 
+                    function updateVisibleDecode() {
+                        if (!(root.pluginApi?.pluginSettings?.enableFullTextDecode ?? false)) return;
+                        const modelItems = root.filteredItems || [];
+                        if (modelItems.length === 0) return;
+                        if (orientation === ListView.Horizontal) {
+                            const y = height / 2;
+                            let first = indexAt(contentX + 1, y);
+                            let last = indexAt(contentX + width - 1, y);
+                            if (first < 0) first = 0;
+                            if (last < 0) last = modelItems.length - 1;
+                            root.pluginApi?.mainInstance?.queueTextDecodesRange(modelItems, first, last);
+                        } else {
+                            const x = width / 2;
+                            let first = indexAt(x, contentY + 1);
+                            let last = indexAt(x, contentY + height - 1);
+                            if (first < 0) first = 0;
+                            if (last < 0) last = modelItems.length - 1;
+                            root.pluginApi?.mainInstance?.queueTextDecodesRange(modelItems, first, last);
+                        }
+                    }
+
+                    onContentXChanged: updateVisibleDecode()
+                    onContentYChanged: updateVisibleDecode()
+                    onWidthChanged: updateVisibleDecode()
+                    onHeightChanged: updateVisibleDecode()
+                    onCountChanged: updateVisibleDecode()
+                    Component.onCompleted: Qt.callLater(updateVisibleDecode)
+
                     Keys.onUpPressed: { searchInput.forceActiveFocus(); }
                     Keys.onLeftPressed: {
                         if (count > 0) {

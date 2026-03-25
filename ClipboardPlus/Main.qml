@@ -36,6 +36,12 @@ Item {
   property var items: []
   property bool loading: false
   property var firstSeenById: ({})
+  property int previewWidth: 100
+  property var decodedTextCache: ({})
+  property var decodeQueue: []
+  property var decodeQueued: ({})
+  property bool decodeRunning: false
+  property int decodedRevision: 0
 
   // Image cache (id -> data URL) with LRU eviction
   property var imageCache: ({})
@@ -350,6 +356,23 @@ Item {
 
                 root.items = parsed;
                 root.loading = false;
+              }
+  }
+
+  Process {
+    id: textDecodeProc
+    property string clipId: ""
+    stdout: StdioCollector {}
+
+    onExited: exitCode => {
+                const id = clipId;
+                decodeRunning = false;
+                decodeQueued[id] = false;
+                if (exitCode === 0) {
+                  decodedTextCache[id] = String(stdout.text || "");
+                  decodedRevision++;
+                }
+                startTextDecode();
               }
   }
 
@@ -983,9 +1006,58 @@ Item {
     if (listProc.running)
       return;
     root.loading = true;
-    const width = maxPreviewWidth || 100;
+    const width = (maxPreviewWidth !== undefined && maxPreviewWidth !== null)
+        ? maxPreviewWidth
+        : root.previewWidth;
+    root.previewWidth = width;
     listProc.command = ["cliphist", "list", "-preview-width", String(width)];
     listProc.running = true;
+  }
+
+  function getDecodedText(id) {
+    return decodedTextCache[id] || "";
+  }
+
+  function queueTextDecode(id) {
+    if (!(pluginApi?.pluginSettings?.enableFullTextDecode ?? false)) return;
+    if (!id) return;
+    if (decodedTextCache[id]) return;
+    if (decodeQueued[id]) return;
+    decodeQueued[id] = true;
+    decodeQueue.push(id);
+    startTextDecode();
+  }
+
+  function queueTextDecodes(itemsList) {
+    if (!(pluginApi?.pluginSettings?.enableFullTextDecode ?? false)) return;
+    for (let i = 0; i < itemsList.length; i++) {
+      const it = itemsList[i];
+      if (!it || it.isImage) continue;
+      queueTextDecode(it.id);
+    }
+  }
+
+  function queueTextDecodesRange(itemsList, startIndex, endIndex) {
+    if (!(pluginApi?.pluginSettings?.enableFullTextDecode ?? false)) return;
+    if (!itemsList || itemsList.length === 0) return;
+    let start = Math.max(0, startIndex);
+    let end = Math.min(itemsList.length - 1, endIndex);
+    if (end < start) return;
+    for (let i = start; i <= end; i++) {
+      const it = itemsList[i];
+      if (!it || it.isImage) continue;
+      queueTextDecode(it.id);
+    }
+  }
+
+  function startTextDecode() {
+    if (decodeRunning) return;
+    if (decodeQueue.length === 0) return;
+    const id = decodeQueue.shift();
+    decodeRunning = true;
+    textDecodeProc.clipId = id;
+    textDecodeProc.command = ["cliphist", "decode", String(id)];
+    textDecodeProc.running = true;
   }
 
   function copyToClipboard(id) {

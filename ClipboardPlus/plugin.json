@@ -1,7 +1,7 @@
 {
   "id": "clipboardPlus",
   "name": "ClipBoard+",
-  "description": "Advanced clipboard manager with clipboard history, pinned items, notes, and built-in ToDo list. Ported / inspired from Noctalia Clipper plugin.",
+  "description": "Advanced clipboard manager with many features. Ported / inspired from Noctalia Clipper plugin.",
   "version": "1.0.0",
   "author": "Dadangdut33",
   "icon": "content_paste",

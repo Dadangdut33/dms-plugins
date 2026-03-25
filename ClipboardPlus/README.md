@@ -4,6 +4,15 @@ Advanced clipboard manager for DMS with clipboard history, pinned items, notes, 
 
 Ported / inspired from [clipper in noctalia-shell](https://noctalia.dev/plugins/clipper/) by [blackbartblues](https://github.com/blackbartblues).
 
+## Features
+
+- Clipboard
+- Clipboard categorization
+- ToDo
+- Pinned clipboard
+- Notes
+- Keyboard navigation
+
 ## Notes
 
 - Uses `cliphist`, `wl-copy`, and `wl-paste`.

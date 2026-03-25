@@ -215,6 +215,74 @@ PluginSettings {
             }
 
             ToggleSetting {
+                id: decodeToggle
+                settingKey: "enableFullTextDecode"
+                label: "Enable Full Text Decode"
+                description: "Decode (show) full clipboard entries for cards (can increase CPU usage)"
+                defaultValue: false
+            }
+
+            Column {
+                width: parent.width
+                spacing: 4
+                visible: decodeToggle.value
+
+                StyledText {
+                    text: "Max Decoded Text Length"
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceText
+                }
+
+                Row {
+                    width: parent.width
+                    height: 24
+                    spacing: Theme.spacingM
+
+                    DankSlider {
+                        id: decodeLimitSlider
+                        width: parent.width - 90
+                        minimum: 100
+                        maximum: 500
+                        step: 10
+                        showValue: false
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Binding {
+                            target: decodeLimitSlider
+                            property: "value"
+                            value: loadValue("maxDecodedTextLength", 250)
+                        }
+
+                        onSliderValueChanged: decodeLimitDebounce.restart()
+                    }
+
+                    StyledText {
+                        id: decodeLimitValue
+                        text: Math.round(decodeLimitSlider.value) + " chars"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 70
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                Timer {
+                    id: decodeLimitDebounce
+                    interval: 200
+                    repeat: false
+                    onTriggered: root.saveValue("maxDecodedTextLength", Math.round(decodeLimitSlider.value))
+                }
+            }
+
+            StyledText {
+                visible: decodeToggle.value
+                width: parent.width
+                text: "Warning: Enabling this can cause increase in cpu usage, especially with large histories."
+                font.pixelSize: Theme.fontSizeSmall
+                color: Theme.warning
+                wrapMode: Text.WordWrap
+            }
+
+            ToggleSetting {
                 settingKey: "enableTabNavigation"
                 label: "Enable Tab Navigation"
                 description: "Cycle focus between clipboard, search, categories, pinned, and todo"
@@ -302,16 +370,16 @@ PluginSettings {
             }
 
             ToggleSetting {
-                settingKey: "showBarWidget"
-                label: "Show Bar Widget"
-                description: "Display the ClipBoard+ icon in the bar"
+                settingKey: "closeOnOutsideClick"
+                label: "Close On Outside Click"
+                description: "Close panel when clicking outside the main container"
                 defaultValue: true
             }
 
             ToggleSetting {
-                settingKey: "closeOnOutsideClick"
-                label: "Close On Outside Click"
-                description: "Close panel when clicking outside the main container"
+                settingKey: "showBarWidget"
+                label: "Show Bar Widget"
+                description: "Display the ClipBoard+ icon in the bar"
                 defaultValue: true
             }
 
