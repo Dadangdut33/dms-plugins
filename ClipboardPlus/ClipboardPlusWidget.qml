@@ -36,6 +36,8 @@ PluginComponent {
     property bool showPanelSeparator: pluginData.showPanelSeparator !== undefined ? pluginData.showPanelSeparator : true
     property bool enableAnimations: pluginData.enableAnimations !== undefined ? pluginData.enableAnimations : true
     property bool enableTabNavigation: pluginData.enableTabNavigation !== undefined ? pluginData.enableTabNavigation : true
+    property string tabOrder: pluginData.tabOrder !== undefined ? pluginData.tabOrder : ""
+    property string tabOrderEnabled: pluginData.tabOrderEnabled !== undefined ? pluginData.tabOrderEnabled : ""
 
     function screenKey(screen) {
         return screen?.name || "default"
@@ -144,6 +146,8 @@ PluginComponent {
         property bool enableAnimations: root.enableAnimations
         property bool enableTabNavigation: root.enableTabNavigation
         property bool closeOnOutsideClick: root.closeOnOutsideClick
+        property string tabOrder: root.tabOrder
+        property string tabOrderEnabled: root.tabOrderEnabled
     }
 
     property var panelByName: ({})

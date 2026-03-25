@@ -26,6 +26,21 @@ Item {
         }
     }
 
+    function focusClipboardList() {
+        if (!listView) return;
+        listView.forceActiveFocus();
+        if (listView.count > 0) {
+            selectedIndex = Math.min(selectedIndex, listView.count - 1);
+            listView.positionViewAtIndex(selectedIndex, ListView.Contain);
+        }
+    }
+
+    onPanelOpenChanged: {
+        if (panelOpen) {
+            Qt.callLater(() => focusClipboardList());
+        }
+    }
+
     opacity: animationsEnabled ? openProgress : 1
     scale: animationsEnabled ? (0.98 + 0.02 * openProgress) : 1
 
@@ -142,19 +157,97 @@ Item {
         }
     }
 
+    // Tab navigation 
+    function normalizeTabKey(key) {
+        if (!key) return "";
+        const k = key.toLowerCase().trim();
+        if (k === "clipboard" || k.startsWith("clip") || k === "history") return "clipboard";
+        if (k === "search")                                                 return "search";
+        if (k === "category" || k === "categories" || k === "filters")     return "category";
+        if (k === "pinned"   || k === "pin")                               return "pinned";
+        if (k === "todo"     || k === "todos")                             return "todo";
+        return "";
+    }
+
+    function resolveTabOrder() {
+        const fallback = ["clipboard", "search", "category", "pinned", "todo"];
+        const raw = pluginApi?.pluginSettings?.tabOrder;
+        if (!raw || !raw.trim()) return fallback;
+        const parts = raw.split(",").map(s => s.trim()).filter(Boolean);
+        const seen  = {};
+        const order = [];
+        for (let i = 0; i < parts.length; i++) {
+            const key = normalizeTabKey(parts[i]);
+            if (!key || seen[key]) continue;
+            seen[key] = true;
+            order.push(key);
+        }
+        for (let i = 0; i < fallback.length; i++) {
+            if (!seen[fallback[i]]) order.push(fallback[i]);
+        }
+        return order;
+    }
+
+    function resolveEnabledSet() {
+        const raw = pluginApi?.pluginSettings?.tabOrderEnabled;
+        if (raw === undefined || raw === null) return null; // null = all enabled
+        if (!raw.trim()) return {};                         // empty = all disabled
+        const set   = {};
+        const parts = raw.split(",").map(s => s.trim()).filter(Boolean);
+        for (let i = 0; i < parts.length; i++) {
+            const key = normalizeTabKey(parts[i]);
+            if (key) set[key] = true;
+        }
+        return set;
+    }
+
     function tabTargets() {
+        const order      = resolveTabOrder();
+        const enabledSet = resolveEnabledSet();
+
         const targets = [];
-        if (listView) targets.push(listView);
-        if (searchField) targets.push(searchField);
-        if (categoryTabTarget) targets.push(categoryTabTarget);
-        if (pinnedFocus && pinnedFocus.visible) targets.push(pinnedFocus);
-        if (todoFocus && todoFocus.visible) targets.push(todoFocus);
-        return targets.filter(t => t && (t.visible === undefined || t.visible));
+        for (let i = 0; i < order.length; i++) {
+            const key = order[i];
+            if (enabledSet !== null && !enabledSet[key]) continue;
+
+            let target = null;
+            switch (key) {
+                case "clipboard": target = listView;      break;
+                case "search":    target = searchField;   break;
+                case "category":  target = categoryFocus; break;
+                case "pinned":    target = pinnedFocus;   break;
+                case "todo":      target = todoFocus;     break;
+            }
+
+            if (target && (target.visible === undefined || target.visible)) {
+                targets.push(target);
+            }
+        }
+        return targets;
+    }
+
+    // Returns true if `target` has activeFocus OR any of its descendants do.
+    // Needed because ListView delegates steal focus from the ListView itself,
+    // and FocusScopes forward focus inward — so target.activeFocus is often
+    // false even when that section is "active" from the user's perspective.
+    function targetHasFocus(target) {
+        if (!target) return false;
+        if (target.activeFocus) return true;
+        // Walk up from the window's currently focused item to see if target
+        // is an ancestor — i.e. focus is somewhere inside target's subtree.
+        const focused = Window.activeFocusItem;
+        if (!focused) return false;
+        let item = focused;
+        while (item) {
+            if (item === target) return true;
+            item = item.parent;
+        }
+        return false;
     }
 
     function currentTabIndex(targets) {
         for (let i = 0; i < targets.length; i++) {
-            if (targets[i].activeFocus) return i;
+            if (targetHasFocus(targets[i])) return i;
         }
         return -1;
     }
@@ -172,7 +265,7 @@ Item {
         if (!enableTabNavigation) return;
         const targets = tabTargets();
         if (targets.length === 0) return;
-        const idx = currentTabIndex(targets);
+        const idx  = currentTabIndex(targets);
         const next = targets[(idx + 1) % targets.length];
         focusTarget(next);
     }
@@ -181,7 +274,7 @@ Item {
         if (!enableTabNavigation) return;
         const targets = tabTargets();
         if (targets.length === 0) return;
-        const idx = currentTabIndex(targets);
+        const idx  = currentTabIndex(targets);
         const next = targets[(idx - 1 + targets.length) % targets.length];
         focusTarget(next);
     }
@@ -472,7 +565,6 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         implicitWidth: filterRow.implicitWidth
                         implicitHeight: filterRow.implicitHeight
-                        activeFocusOnTab: true
                         Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
                         Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
                         Keys.onLeftPressed: event => { root.focusCategoryIndex(root.categoryIndex - 1); event.accepted = true; }
@@ -1293,14 +1385,13 @@ Item {
                         screen: root.currentScreen
                         panelRoot: root
                         fixedHeight: listView.height
-                        selected: index === root.selectedIndex
+                        selected: listView.activeFocus && index === root.selectedIndex
                         enableTodoIntegration: pluginApi?.pluginSettings?.todoEnabled ?? true
                         isPinned: {
                             const rev = root.pluginApi?.mainInstance?.pinnedRevision || 0;
                             const pinnedItems = root.pluginApi?.mainInstance?.pinnedItems || [];
                             return pinnedItems.some(p => p.id === clipboardId);
                         }
-
                         onClicked: {
                             root.selectedIndex = index;
                             root.pluginApi?.mainInstance?.copyToClipboard(clipboardId);
@@ -1459,7 +1550,6 @@ Item {
                             spacing: Theme.spacingS
                             clip: true
                             focus: true
-                            activeFocusOnTab: true
                             keyNavigationWraps: true
                             Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
                             Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }
@@ -1642,7 +1732,6 @@ Item {
                                 spacing: Theme.spacingXS
                                 clip: true
                                 focus: true
-                                activeFocusOnTab: true
                                 keyNavigationWraps: true
                                 Keys.onTabPressed: event => { root.advanceTab(); event.accepted = true; }
                                 Keys.onBacktabPressed: event => { root.reverseTab(); event.accepted = true; }

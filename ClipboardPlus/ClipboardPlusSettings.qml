@@ -9,6 +9,153 @@ import qs.Widgets
 PluginSettings {
     id: root
     pluginId: "clipboardPlus"
+    Component.onCompleted: tabOrderInitTimer.restart()
+    onVisibleChanged: {
+        if (visible) tabOrderInitTimer.restart();
+    }
+
+    Timer {
+        id: tabOrderInitTimer
+        interval: 0
+        repeat: false
+        onTriggered: initTabOrderModel()
+    }
+
+    Connections {
+        target: root.pluginService
+        enabled: root.pluginService !== null
+
+        function onPluginDataChanged(changedPluginId) {
+            if (changedPluginId === root.pluginId) {
+                tabOrderInitTimer.restart();
+            }
+        }
+    }
+
+    component CheckboxRow: Row {
+        property alias checked: checkbox.checked
+        property alias label: labelText.text
+        spacing: Theme.spacingS
+        height: 24
+
+        Rectangle {
+            id: checkbox
+            property bool checked: false
+            width: 20
+            height: 20
+            radius: 4
+            color: checked ? Theme.primary : "transparent"
+            border.color: checked ? Theme.primary : Theme.outlineButton
+            border.width: 2
+            anchors.verticalCenter: parent.verticalCenter
+
+            DankIcon {
+                anchors.centerIn: parent
+                name: "check"
+                size: 12
+                color: Theme.background
+                visible: parent.checked
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: parent.checked = !parent.checked
+            }
+        }
+
+        StyledText {
+            id: labelText
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.surfaceText
+            anchors.verticalCenter: parent.verticalCenter
+        }
+    }
+
+    ListModel {
+        id: tabOrderModel
+    }
+
+    property bool tabOrderInitInProgress: false
+
+    function defaultTabOrder() {
+        return ["clipboard", "search", "category", "pinned", "todo"];
+    }
+
+    function labelForTabKey(key) {
+        switch (key) {
+        case "clipboard": return "Clipboard";
+        case "search":    return "Search";
+        case "category":  return "Category";
+        case "pinned":    return "Pinned";
+        case "todo":      return "Todo";
+        default:          return key;
+        }
+    }
+
+    function initTabOrderModel() {
+        tabOrderInitInProgress = true;
+        tabOrderModel.clear();
+        const defaultOrder = defaultTabOrder();
+        const rawOrder   = loadValue("tabOrder", "");
+        const rawEnabled = loadValue("tabOrderEnabled", "");
+        const parsedOrder   = rawOrder   ? rawOrder.split(/[,\s]+/).filter(Boolean)   : [];
+        const parsedEnabled = rawEnabled ? rawEnabled.split(/[,\s]+/).filter(Boolean) : [];
+        const enabledSet = {};
+        for (let i = 0; i < parsedEnabled.length; i++) enabledSet[parsedEnabled[i]] = true;
+        const seen = {};
+        const finalOrder = [];
+        for (let i = 0; i < parsedOrder.length; i++) {
+            const key = parsedOrder[i];
+            if (defaultOrder.indexOf(key) === -1 || seen[key]) continue;
+            seen[key] = true;
+            finalOrder.push(key);
+        }
+        for (let i = 0; i < defaultOrder.length; i++) {
+            const key = defaultOrder[i];
+            if (!seen[key]) finalOrder.push(key);
+        }
+        for (let i = 0; i < finalOrder.length; i++) {
+            const key = finalOrder[i];
+            tabOrderModel.append({
+                key:     key,
+                label:   labelForTabKey(key),
+                enabled: parsedEnabled.length === 0 ? true : !!enabledSet[key]
+            });
+        }
+        Qt.callLater(() => { tabOrderInitInProgress = false; });
+    }
+
+    function saveTabOrderModel() {
+        const order   = [];
+        const enabled = [];
+        for (let i = 0; i < tabOrderModel.count; i++) {
+            const item = tabOrderModel.get(i);
+            order.push(item.key);
+            if (item.enabled) enabled.push(item.key);
+        }
+        saveValue("tabOrder",        order.join(","));
+        saveValue("tabOrderEnabled", enabled.join(","));
+    }
+
+    function moveTabOrderItem(fromIndex, toIndex) {
+        if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+        if (fromIndex >= tabOrderModel.count || toIndex >= tabOrderModel.count) return;
+        const items = [];
+        for (let i = 0; i < tabOrderModel.count; i++) {
+            const item = tabOrderModel.get(i);
+            items.push({ key: item.key, label: item.label, enabled: item.enabled });
+        }
+        const moved = items.splice(fromIndex, 1)[0];
+        items.splice(toIndex, 0, moved);
+        tabOrderModel.clear();
+        for (let i = 0; i < items.length; i++) {
+            tabOrderModel.append(items[i]);
+        }
+        if (!tabOrderInitInProgress) {
+            saveTabOrderModel();
+        }
+    }
 
     StyledText {
         width: parent.width
@@ -72,6 +219,86 @@ PluginSettings {
                 label: "Enable Tab Navigation"
                 description: "Cycle focus between clipboard, search, categories, pinned, and todo"
                 defaultValue: true
+            }
+
+            Column {
+                width: parent.width
+                spacing: Theme.spacingS
+
+                StyledText {
+                    text: "Tab Navigation Order"
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceText
+                }
+
+                StyledText {
+                    text: "Enable/disable targets and reorder them. Use arrows to move."
+                    font.pixelSize: Theme.fontSizeSmall * 0.9
+                    opacity: 0.6
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                }
+
+                ListView {
+                    id: tabOrderList
+                    width: parent.width
+                    height: contentHeight
+                    spacing: Theme.spacingS
+                    interactive: false
+                    model: tabOrderModel
+
+                    delegate: RowLayout {
+                        width: tabOrderList.width
+                        height: 28
+                        spacing: Theme.spacingS
+
+                        // Capture index immediately — ListView recycles delegates
+                        // and re-evaluates `index` after model mutations, so closures
+                        // that close over `index` directly will see the wrong value
+                        // for the last item (it gets -1 or the shifted position).
+                        readonly property int delegateIndex: index
+
+                        CheckboxRow {
+                            id: rowCheck
+                            checked: model.enabled
+                            label: model.label
+                            onCheckedChanged: {
+                                tabOrderModel.setProperty(delegateIndex, "enabled", checked);
+                                if (!root.tabOrderInitInProgress) {
+                                    root.saveTabOrderModel();
+                                }
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        DankActionButton {
+                            width: 26
+                            height: 26
+                            iconName: "keyboard_arrow_up"
+                            backgroundColor: Theme.surfaceContainer
+                            iconColor: Theme.surfaceText
+                            enabled: delegateIndex > 0
+                            onClicked: {
+                                const i = delegateIndex;
+                                root.moveTabOrderItem(i, i - 1);
+                            }
+                        }
+
+                        DankActionButton {
+                            width: 26
+                            height: 26
+                            iconName: "keyboard_arrow_down"
+                            backgroundColor: Theme.surfaceContainer
+                            iconColor: Theme.surfaceText
+                            enabled: delegateIndex < tabOrderModel.count - 1
+                            onClicked: {
+                                const i = delegateIndex;
+                                root.moveTabOrderItem(i, i + 1);
+                            }
+                        }
+                    }
+                }
             }
 
             ToggleSetting {
