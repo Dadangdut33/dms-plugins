@@ -32,6 +32,7 @@ dms ipc call clipboardPlus togglePanel
 
 # Note cards
 dms ipc call clipboardPlus addNoteCard "Quick note"
+dms ipc call clipboardPlus listNoteCards
 dms ipc call clipboardPlus exportNoteCard "note_id"
 
 # Add current clipboard data to ToDo

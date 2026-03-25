@@ -179,7 +179,7 @@ Rectangle {
                             anchors.fill: parent
                             verticalAlignment: Text.AlignVCenter
                             horizontalAlignment: Text.AlignLeft
-                            text: pluginApi?.tr("notecards.untitled-placeholder") || "Untitled"
+                            text: "Untitled"
                             color: parent.color
                             opacity: 0.5
                             visible: titleInput.text.length === 0
@@ -198,7 +198,7 @@ Rectangle {
                 }
                 DankActionButton {
                     iconName: "palette"
-                    tooltipText: pluginApi?.tr("notecards.change-color") || "Change Color"
+                    tooltipText: "Change Color"
                     iconColor: {
                         const noteColor = localColor;
                         const scheme = colorSchemes[noteColor];
@@ -224,7 +224,7 @@ Rectangle {
 
                 DankActionButton {
                     iconName: "file_upload"
-                    tooltipText: pluginApi?.tr("notecards.export") || "Export to .txt"
+                    tooltipText: "Export to .txt"
                     iconColor: {
                         const noteColor = localColor;
                         const scheme = colorSchemes[noteColor];
@@ -241,7 +241,7 @@ Rectangle {
 
                 DankActionButton {
                     iconName: "delete"
-                    tooltipText: pluginApi?.tr("notecards.delete") || "Delete Note"
+                    tooltipText: "Delete Note"
                     iconColor: {
                         const noteColor = localColor;
                         const scheme = colorSchemes[noteColor];
@@ -322,6 +322,42 @@ Rectangle {
                     }
 
                     onTextChanged: root.scheduleSave()
+                }
+            }
+        }
+
+        // Note ID footer
+        Rectangle {
+            Layout.fillWidth: true
+            height: 18
+            color: "transparent"
+            Row {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 6
+
+                StyledText {
+                    id: noteIdText
+                    text: note && note.id ? ("ID: " + note.id) : ""
+                    font.pixelSize: 10
+                    color: Theme.surfaceVariantText
+                    elide: Text.ElideRight
+                }
+
+                DankActionButton {
+                    width: 10
+                    height: 10
+                    iconSize: 10
+                    iconName: "content_copy"
+                    tooltipText: "Copy ID"
+                    backgroundColor: "transparent"
+                    iconColor: Theme.surfaceVariantText
+                    onClicked: {
+                        if (root.pluginApi && root.pluginApi.mainInstance && root.note && root.note.id) {
+                            root.pluginApi.mainInstance.copyTextToClipboard(root.note.id);
+                        }
+                    }
                 }
             }
         }

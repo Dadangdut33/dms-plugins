@@ -25,7 +25,7 @@ Item {
         iconName: "content_paste"
         iconColor: Theme.surfaceText
         backgroundColor: Theme.surfaceContainerHigh
-        tooltipText: pluginApi?.tr("bar.tooltip") || "Clipboard History"
+        tooltipText: "Clipboard History"
         tooltipSide: "bottom"
 
         onClicked: {
@@ -56,8 +56,8 @@ Item {
 
                 Repeater {
                     model: [
-                        { label: pluginApi?.tr("context.toggle") || "Toggle ClipBoard+", action: "toggle-clipboardPlus" },
-                        { label: pluginApi?.tr("context.settings") || "Open Settings", action: "open-settings" }
+                        { label: "Toggle ClipBoard+", action: "toggle-clipboardPlus" },
+                        { label: "Open Settings", action: "open-settings" }
                     ]
 
                     delegate: Rectangle {

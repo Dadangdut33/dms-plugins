@@ -9,64 +9,66 @@ Item {
   property var pluginApi: null
   property bool panelVisible: false
 
-  // Auto-paste support
-  property bool wtypeAvailable: false
-
-  // Watch for pluginApi changes and initialize settings
-  onPluginApiChanged: {
-    if (pluginApi) {
-    }
-  }
-
-  // Pending selected text for ToDo selector
-  property string pendingSelectedText: ""
-
-  // Pinned items data
-  property var pinnedItems: []
-  property int pinnedRevision: 0
-
-  // Note cards data
-  property var noteCards: []
-  property int noteCardsRevision: 0
-  property bool noteCardsLoaded: false
-  property int noteCardsLoadToken: 0
-  property var deletedNoteIds: ({})
-
-  // Clipboard items from cliphist
+  // ── Clipboard items ────────────────────────────────────────────────────────
   property var items: []
   property bool loading: false
   property var firstSeenById: ({})
   property int previewWidth: 100
+
+  // ── Full-text decode queue ─────────────────────────────────────────────────
   property var decodedTextCache: ({})
   property var decodeQueue: []
   property var decodeQueued: ({})
   property bool decodeRunning: false
   property int decodedRevision: 0
 
-  // Image cache (id -> data URL) with LRU eviction
+  // ── Image cache (LRU, max 50 entries) ─────────────────────────────────────
   property var imageCache: ({})
-  property var imageCacheOrder: []  // Track insertion order for LRU
-  property int imageCacheRevision: 0  // Incremented when cache changes (for reactive bindings)
-  readonly property int maxImageCacheSize: 50  // Limit cache to 50 entries
+  property var imageCacheOrder: []
+  property int imageCacheRevision: 0
+  readonly property int maxImageCacheSize: 50
 
-  // Pending pageId for async operations (ToDo integration)
+  // ── Pinned items ───────────────────────────────────────────────────────────
+  property var pinnedItems: []
+  property int pinnedRevision: 0
+
+  // ── Note cards ────────────────────────────────────────────────────────────
+  property var noteCards: []
+  property int noteCardsRevision: 0
+  property bool noteCardsLoaded: false
+  property int noteCardsLoadToken: 0
+  property var deletedNoteIds: ({})
+
+  // ── ToDo ───────────────────────────────────────────────────────────────────
+  property var todoPages: []
+  property var todos: []
+  property int todoRevision: 0
+
+  // ── Pending / selector state ───────────────────────────────────────────────
+  property string pendingSelectedText: ""
+  property string pendingNoteCardText: ""
   property int pendingPageId: 0
+  property string activeSelector: ""  // "todo" | "notecard"
 
-  // Constants for limits
-  readonly property int maxPinnedItems: 100 // Maximum number of pinned items
-  readonly property int maxNoteCards: 50      // Maximum number of note cards
-  readonly property int maxTodoTextLength: 500      // Maximum text length for ToDo items
-  readonly property int maxPinnedTextMb: Math.max(1, Math.floor(pluginApi?.pluginSettings?.maxPinnedTextMb ?? 1)) * 1024 * 1024
+  // ── Auto-paste ─────────────────────────────────────────────────────────────
+  property bool wtypeAvailable: false
+
+  // ── Limits ────────────────────────────────────────────────────────────────
+  readonly property int maxPinnedItems: 100
+  readonly property int maxNoteCards: 50
+  readonly property int maxTodoTextLength: 500
+  readonly property int maxPinnedTextMb:  Math.max(1, Math.floor(pluginApi?.pluginSettings?.maxPinnedTextMb  ?? 1)) * 1024 * 1024
   readonly property int maxPinnedImageMb: Math.max(5, Math.floor(pluginApi?.pluginSettings?.maxPinnedImageMb ?? 5)) * 1024 * 1024
   readonly property int maxPreviewImageSize: maxPinnedImageMb
 
-  // Config root for DMS (override via settings)
+  // ── Paths ──────────────────────────────────────────────────────────────────
   readonly property string defaultConfigRoot: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/dms-clipboardPlus"
   readonly property string configRoot: {
     const custom = pluginApi?.pluginSettings?.dataBasePath;
     return (custom && String(custom).trim().length > 0) ? custom : defaultConfigRoot;
   }
   readonly property string clipboardPlusConfigDir: configRoot + "/data"
+  readonly property string noteCardsDir: clipboardPlusConfigDir + "/notecards"
   readonly property string exportBasePath: {
     const custom = pluginApi?.pluginSettings?.exportPath;
     return (custom && String(custom).trim().length > 0)
@@ -74,76 +76,29 @@ Item {
         : (Quickshell.env("HOME") + "/Documents");
   }
 
-  // FileView for pinned.json
+  // ══════════════════════════════════════════════════════════════════════════
+  // FILE VIEWS
+  // ══════════════════════════════════════════════════════════════════════════
+
   FileView {
     id: pinnedFile
     path: clipboardPlusConfigDir + "/pinned.json"
     watchChanges: true
     printErrors: false
-
     onLoaded: {
       try {
         const data = JSON.parse(text());
         root.pinnedItems = data.items || [];
-        root.pinnedRevision++;
-      } catch (e) {
+      } catch (_) {
         root.pinnedItems = [];
       }
+      root.pinnedRevision++;
     }
-
     onLoadFailed: {
       root.pinnedItems = [];
       root.pinnedRevision++;
     }
   }
-
-  // NoteCards directory path (per-note JSON files)
-  readonly property string noteCardsDir: clipboardPlusConfigDir + "/notecards"
-
-  // Process to load all notecards from directory (jq aggregates JSON files)
-  Process {
-    id: loadNoteCardsProc
-    property int loadToken: 0
-    stdout: StdioCollector {}
-    stderr: StdioCollector {}
-
-    onExited: exitCode => {
-      if (loadToken !== root.noteCardsLoadToken) {
-        return;
-      }
-      if (exitCode !== 0) {
-        root.noteCards = [];
-        root.noteCardsRevision++;
-        root.noteCardsLoaded = true;
-        return;
-      }
-
-      try {
-        const output = String(stdout.text || "").trim();
-        if (!output || output === "[]") {
-          root.noteCards = [];
-          root.noteCardsRevision++;
-          root.noteCardsLoaded = true;
-          return;
-        }
-
-        const loadedNotes = JSON.parse(output);
-        const list = Array.isArray(loadedNotes) ? loadedNotes : [];
-        root.noteCards = list.filter(n => !root.deletedNoteIds[String(n.id)]);
-        root.noteCardsRevision++;
-        root.noteCardsLoaded = true;
-      } catch (e) {
-        root.noteCards = [];
-        root.noteCardsRevision++;
-        root.noteCardsLoaded = true;
-      }
-    }
-  }
-
-  // ToDo storage (json file)
-  property var todoPages: []
-  property var todos: []
-  property int todoRevision: 0
 
   FileView {
     id: todoFile
@@ -152,37 +107,26 @@ Item {
     blockWrites: false
     atomicWrites: true
     printErrors: false
-
     onLoaded: {
       const raw = text();
       let parsed = null;
       let repaired = false;
       try {
         parsed = JSON.parse(raw);
-      } catch (e) {
+      } catch (_) {
         const lastBrace = raw.lastIndexOf("}");
         if (lastBrace !== -1) {
-          const trimmed = raw.slice(0, lastBrace + 1);
-          try {
-            parsed = JSON.parse(trimmed);
-            repaired = true;
-          } catch (e2) {
-            parsed = null;
-          }
+          try { parsed = JSON.parse(raw.slice(0, lastBrace + 1)); repaired = true; }
+          catch (_2) {}
         }
       }
-
       const data = parsed || {};
       const pages = data.pages || [];
-      const items = data.todos || [];
       root.todoPages = pages.length > 0 ? pages : [{ id: 1, name: "Inbox" }];
-      root.todos = Array.isArray(items) ? items : [];
+      root.todos = Array.isArray(data.todos) ? data.todos : [];
       root.todoRevision++;
-      if (repaired) {
-        root.saveTodoFile();
-      }
+      if (repaired) root.saveTodoFile();
     }
-
     onLoadFailed: error => {
       if (error === 2) {
         root.todoPages = [{ id: 1, name: "Inbox" }];
@@ -193,7 +137,404 @@ Item {
     }
   }
 
-  // Function to load all notecards
+  // ══════════════════════════════════════════════════════════════════════════
+  // IPC HANDLER  (single handler, target: "clipboardPlus")
+  // ══════════════════════════════════════════════════════════════════════════
+
+  IpcHandler {
+    target: "clipboardPlus"
+
+    function openPanel()   { root.ipcOpenPanel()   }
+    function closePanel()  { root.ipcClosePanel()  }
+    function togglePanel() { root.ipcTogglePanel() }
+    function toggle()      { root.ipcTogglePanel() }
+
+    function pinClipboardItem(cliphistId: string) { root.pinItem(cliphistId)             }
+    function unpinItem(pinnedId: string)          { root.unpinItem(pinnedId)             }
+    function copyPinned(pinnedId: string)         { root.copyPinnedToClipboard(pinnedId) }
+
+    function addClipboardToTodo()  { root.fetchTextThen("clipboard", t => root.addTodoWithText(t, 0)) }
+    function addSelectionToTodo()  { root.fetchTextThen("selection", t => root.addTodoWithText(t, 0)) }
+
+    function addNoteCard(text: string)        { root.createNoteCard(text || "")  }
+    function exportNoteCard(noteId: string)   { root.exportNoteCard(noteId)      }
+    function listNoteCards(): string          { return root.listNoteCardsIpc()   }
+
+    function addClipboardToNoteCard()  { root.fetchTextThen("clipboard", t => root.showSelector("notecard", t)) }
+    function addSelectionToNoteCard()  { root.fetchTextThen("selection",  t => root.showSelector("notecard", t)) }
+  }
+
+  function ipcOpenPanel() {
+    pluginApi?.withCurrentScreen(screen => pluginApi.openPanel(screen));
+  }
+  function ipcClosePanel() {
+    pluginApi?.withCurrentScreen(screen => pluginApi.closePanel(screen));
+  }
+  function ipcTogglePanel() {
+    pluginApi?.withCurrentScreen(screen => pluginApi.togglePanel(screen));
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CLIPBOARD LIST
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function list(maxPreviewWidth) {
+    if (listProc.running) return;
+    root.loading = true;
+    const width = (maxPreviewWidth !== undefined && maxPreviewWidth !== null)
+        ? maxPreviewWidth : root.previewWidth;
+    root.previewWidth = width;
+    listProc.command = ["cliphist", "list", "-preview-width", String(width)];
+    listProc.running = true;
+  }
+
+  Process {
+    id: listProc
+    stdout: StdioCollector {}
+    onExited: exitCode => {
+      if (exitCode !== 0) { root.items = []; root.loading = false; return; }
+      const lines = String(stdout.text).split('\n').filter(l => l.length > 0);
+      root.items = lines.map(l => {
+        let id = "", preview = "";
+        const m = l.match(/^(\d+)\s+(.+)$/);
+        if (m) { id = m[1]; preview = m[2]; }
+        else {
+          const tab = l.indexOf('\t');
+          id = tab > -1 ? l.slice(0, tab) : l;
+          preview = tab > -1 ? l.slice(tab + 1) : "";
+        }
+        const lower = preview.toLowerCase();
+        const isImage = lower.startsWith("[image]") || lower.includes(" binary data ");
+        let mime = "text/plain";
+        if (isImage) {
+          if      (lower.includes(" png"))                      mime = "image/png";
+          else if (lower.includes(" jpg") || lower.includes(" jpeg")) mime = "image/jpeg";
+          else if (lower.includes(" webp"))                     mime = "image/webp";
+          else if (lower.includes(" gif"))                      mime = "image/gif";
+          else                                                  mime = "image/*";
+        }
+        if (!root.firstSeenById[id]) root.firstSeenById[id] = Date.now();
+        return { id, preview, isImage, mime };
+      });
+      root.loading = false;
+    }
+  }
+
+  // ── Poll while panel is open (optional setting) ───────────────────────────
+  property string lastClipboardText: ""
+
+  Timer {
+    id: clipboardPollTimer
+    interval: 500
+    repeat: true
+    running: root.panelVisible && (pluginApi?.pluginSettings?.listenClipboardWhileOpen ?? false)
+    onTriggered: { if (!clipboardPollProc.running) clipboardPollProc.running = true; }
+  }
+
+  Process {
+    id: clipboardPollProc
+    command: ["wl-paste", "-n", "-t", "text"]
+    stdout: StdioCollector {}
+    onExited: exitCode => {
+      if (exitCode !== 0) return;
+      const text = String(stdout.text || "");
+      if (text !== root.lastClipboardText) { root.lastClipboardText = text; root.list(); }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // COPY TO CLIPBOARD
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Copy a cliphist entry by id (decode → wl-copy pipe)
+  function copyToClipboard(id) {
+    if (!id || !/^\d+$/.test(String(id))) { ToastService.showError("Invalid clipboard item"); return; }
+    copyDecodeProc.command = ["sh", "-c", `cliphist decode ${id} | wl-copy`];
+    copyDecodeProc.running = true;
+  }
+
+  Process {
+    id: copyDecodeProc
+    stdout: StdioCollector {}
+    onExited: exitCode => exitCode === 0
+        ? ToastService.showInfo("Copied to clipboard")
+        : ToastService.showError("Failed to copy");
+  }
+
+  // Copy raw text or binary (used by pinned items)
+  function copyRawText(text) {
+    if (text == null) return;
+    copyRawTextProc.running = true;
+    copyRawTextProc.write(String(text));
+    copyRawTextProc.stdinEnabled = false;
+  }
+
+  function copyRawImage(mimeType, base64Data) {
+    const binaryStr = Qt.atob(base64Data);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+    copyRawImageProc.running = true;
+    copyRawImageProc.write(bytes);
+    copyRawImageProc.stdinEnabled = false;
+  }
+
+  Process {
+    id: copyRawTextProc
+    command: ["wl-copy", "--"]
+    stdinEnabled: true
+    onExited: exitCode => {
+      stdinEnabled = true;
+      exitCode === 0 ? ToastService.showInfo("Copied to clipboard") : ToastService.showError("Failed to copy text");
+    }
+  }
+
+  Process {
+    id: copyRawImageProc
+    command: ["wl-copy"]
+    stdinEnabled: true
+    onExited: exitCode => {
+      stdinEnabled = true;
+      exitCode === 0 ? ToastService.showInfo("Copied to clipboard") : ToastService.showError("Failed to copy image");
+    }
+  }
+
+  function copyTextToClipboard(text) { copyRawText(text); }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DELETE / WIPE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function deleteById(id) {
+    if (!id || !/^\d+$/.test(String(id))) { ToastService.showError("Invalid clipboard item"); return; }
+    deleteItemProc.command = ["sh", "-c", `cliphist list | grep "^${id}	" | cliphist delete`];
+    deleteItemProc.running = true;
+  }
+
+  Process {
+    id: deleteItemProc
+    stdout: StdioCollector {}
+    onExited: _ => root.list()
+  }
+
+  function wipeAll() { wipeProc.running = true; }
+
+  Process {
+    id: wipeProc
+    command: ["cliphist", "wipe"]
+    onExited: _ => { root.clearCaches(); root.list(); }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FULL-TEXT DECODE QUEUE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function getDecodedText(id)    { return decodedTextCache[id] || ""; }
+
+  function queueTextDecode(id) {
+    if (!(pluginApi?.pluginSettings?.enableFullTextDecode ?? false)) return;
+    if (!id || decodedTextCache[id] || decodeQueued[id]) return;
+    decodeQueued[id] = true;
+    decodeQueue.push(id);
+    startTextDecode();
+  }
+
+  function queueTextDecodes(itemsList) {
+    if (!(pluginApi?.pluginSettings?.enableFullTextDecode ?? false)) return;
+    for (let i = 0; i < itemsList.length; i++) {
+      const it = itemsList[i];
+      if (!it || it.isImage) continue;
+      queueTextDecode(it.id);
+    }
+  }
+
+  function queueTextDecodesRange(itemsList, startIndex, endIndex) {
+    if (!(pluginApi?.pluginSettings?.enableFullTextDecode ?? false)) return;
+    if (!itemsList?.length) return;
+    const start = Math.max(0, startIndex);
+    const end   = Math.min(itemsList.length - 1, endIndex);
+    for (let i = start; i <= end; i++) {
+      const it = itemsList[i];
+      if (!it || it.isImage) continue;
+      queueTextDecode(it.id);
+    }
+  }
+
+  function startTextDecode() {
+    if (decodeRunning || decodeQueue.length === 0) return;
+    const id = decodeQueue.shift();
+    decodeRunning = true;
+    textDecodeProc.clipId = id;
+    textDecodeProc.command = ["cliphist", "decode", String(id)];
+    textDecodeProc.running = true;
+  }
+
+  Process {
+    id: textDecodeProc
+    property string clipId: ""
+    stdout: StdioCollector {}
+    onExited: exitCode => {
+      const id = clipId;
+      decodeRunning = false;
+      decodeQueued[id] = false;
+      if (exitCode === 0) { decodedTextCache[id] = String(stdout.text || ""); decodedRevision++; }
+      startTextDecode();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // IMAGE CACHE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function getImageData(cliphistId) { return root.imageCache[cliphistId] || ""; }
+
+  function decodeToDataUrl(cliphistId, mimeType, callback) {
+    if (!cliphistId || !/^\d+$/.test(String(cliphistId))) return;
+    if (root.imageCache[cliphistId]) { callback?.(root.imageCache[cliphistId]); return; }
+    imageDecodeProc.cliphistId = cliphistId;
+    imageDecodeProc.mimeType   = mimeType || "image/png";
+    imageDecodeProc.callback   = callback;
+    imageDecodeProc.command    = ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`];
+    imageDecodeProc.running    = true;
+  }
+
+  Process {
+    id: imageDecodeProc
+    property string cliphistId: ""
+    property string mimeType: "image/png"
+    property var callback: null
+    stdout: StdioCollector {}
+    onExited: exitCode => {
+      if (exitCode !== 0) return;
+      const base64 = String(stdout.text).trim();
+      if (!base64) return;
+      if ((base64.length * 3) / 4 > maxPreviewImageSize) return;
+      const dataUrl = "data:" + mimeType + ";base64," + base64;
+      root.addToImageCache(cliphistId, dataUrl);
+      callback?.(dataUrl);
+    }
+  }
+
+  function addToImageCache(cliphistId, dataUrl) {
+    const existingIndex = root.imageCacheOrder.indexOf(cliphistId);
+    if (existingIndex !== -1)
+      root.imageCacheOrder = root.imageCacheOrder.filter((_, i) => i !== existingIndex);
+    while (root.imageCacheOrder.length >= maxImageCacheSize) {
+      const oldest = root.imageCacheOrder[0];
+      root.imageCacheOrder = root.imageCacheOrder.slice(1);
+      const c = Object.assign({}, root.imageCache);
+      delete c[oldest];
+      root.imageCache = c;
+    }
+    root.imageCache = Object.assign({}, root.imageCache, { [cliphistId]: dataUrl });
+    root.imageCacheOrder = [...root.imageCacheOrder, cliphistId];
+    root.imageCacheRevision++;
+  }
+
+  function clearCaches() {
+    root.imageCache = {};
+    root.imageCacheOrder = [];
+    root.imageCacheRevision++;
+    root.firstSeenById = {};
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PINNED ITEMS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function pinItem(cliphistId) {
+    if (!cliphistId || !/^\d+$/.test(String(cliphistId))) {
+      ToastService.showError("Invalid clipboard item"); return;
+    }
+    if (root.pinnedItems.length >= maxPinnedItems) {
+      ToastService.showWarning(("Maximum {max} pinned items reached").replace("{max}", maxPinnedItems)); return;
+    }
+    const item = root.items.find(i => i.id === cliphistId);
+    if (!item) { ToastService.showError("Item not found in clipboard"); return; }
+
+    const newItem = {
+      id: "pinned-" + Date.now() + "-" + cliphistId,
+      cliphistId,
+      content: "",
+      preview: item.preview,
+      mime: item.mime || "text/plain",
+      isImage: item.isImage || false,
+      pinnedAt: Date.now()
+    };
+    decodeProc.pinnedItem = newItem;
+    decodeProc.command = item.isImage
+        ? ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`]
+        : ["cliphist", "decode", String(cliphistId)];
+    decodeProc.running = true;
+  }
+
+  Process {
+    id: decodeProc
+    property var pinnedItem: null
+    stdout: StdioCollector {}
+    onExited: exitCode => {
+      if (exitCode !== 0) { ToastService.showError("Failed to pin item"); return; }
+      const item = pinnedItem;
+      if (item.isImage) {
+        const base64 = String(stdout.text).trim();
+        if (!base64) { ToastService.showError("Failed to pin image"); return; }
+        if ((base64.length * 3) / 4 > root.maxPinnedImageMb) {
+          ToastService.showWarning("Image too large to pin (max 5MB)"); return;
+        }
+        item.content = "data:" + item.mime + ";base64," + base64;
+      } else {
+        const text = String(stdout.text);
+        if (text.length > root.maxPinnedTextMb) {
+          ToastService.showWarning("Text too large to pin (max 1MB)"); return;
+        }
+        item.content = text;
+      }
+      root.pinnedItems = [...root.pinnedItems, item];
+      root.savePinnedFile();
+      Quickshell.execDetached(["cliphist", "delete", String(item.cliphistId)]);
+      root.pinnedRevision++;
+      ToastService.showInfo("Item pinned");
+    }
+  }
+
+  function unpinItem(pinnedId) {
+    root.pinnedItems = root.pinnedItems.filter(i => i.id !== pinnedId);
+    root.savePinnedFile();
+    root.pinnedRevision++;
+    ToastService.showInfo("Item unpinned");
+  }
+
+  function copyPinnedToClipboard(pinnedId) {
+    const item = root.pinnedItems.find(i => i.id === pinnedId);
+    if (!item) return;
+    if (item.isImage && item.content) {
+      const matches = item.content.match(/^data:([^;]+);base64,(.+)$/);
+      if (!matches) { ToastService.showError("Failed to copy image"); return; }
+      copyRawImage(matches[1], matches[2]);
+    } else {
+      copyRawText(item.content || "");
+    }
+  }
+
+  function savePinnedFile() {
+    const base64 = Qt.btoa(JSON.stringify({ items: root.pinnedItems }, null, 2));
+    const filePath = clipboardPlusConfigDir + "/pinned.json";
+    Quickshell.execDetached(["sh", "-c", `echo "${base64}" | base64 -d > "${filePath}"`]);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // NOTE CARDS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function listNoteCardsIpc() {
+    const list = Array.isArray(root.noteCards) ? root.noteCards : [];
+    try {
+      return JSON.stringify(list.map(n => ({
+        id: n.id, title: n.title || "",
+        createdAt: n.createdAt || "", lastModified: n.lastModified || ""
+      })));
+    } catch (_) { return "[]"; }
+  }
+
   function loadNoteCards() {
     root.noteCardsLoaded = false;
     root.noteCardsLoadToken++;
@@ -215,734 +556,187 @@ Item {
     loadNoteCardsProc.running = true;
   }
 
-  // Helper function to add to image cache with LRU eviction
-  function addToImageCache(cliphistId, dataUrl) {
-    // Remove from order if already exists (will re-add at end)
-    const existingIndex = root.imageCacheOrder.indexOf(cliphistId);
-    if (existingIndex !== -1) {
-      root.imageCacheOrder = root.imageCacheOrder.filter((_, i) => i !== existingIndex);
-    }
-
-    // Evict oldest entries if at capacity
-    while (root.imageCacheOrder.length >= maxImageCacheSize) {
-      const oldestKey = root.imageCacheOrder[0];
-      root.imageCacheOrder = root.imageCacheOrder.slice(1);
-      const newCache = Object.assign({}, root.imageCache);
-      delete newCache[oldestKey];
-      root.imageCache = newCache;
-    }
-
-    // Add new entry
-    root.imageCache = Object.assign({}, root.imageCache, {
-                                      [cliphistId]: dataUrl
-                                    });
-    root.imageCacheOrder = [...root.imageCacheOrder, cliphistId];
-    root.imageCacheRevision++;
-  }
-
-  // Clear caches (called on wipe)
-  function clearCaches() {
-    root.imageCache = {};
-    root.imageCacheOrder = [];
-    root.imageCacheRevision++;
-    root.firstSeenById = {};
-  }
-
-  // Shared item type detection (used by Panel and ClipboardCard)
-  function getItemType(item) {
-    if (!item)
-      return "Text";
-    if (item.isImage)
-      return "Image";
-
-    const preview = item.preview || "";
-    const trimmed = preview.trim();
-
-    // Color detection
-    if (/^#[A-Fa-f0-9]{6}([A-Fa-f0-9]{2})?$/.test(trimmed))
-      return "Color";
-    if (/^#[A-Fa-f0-9]{3}$/.test(trimmed))
-      return "Color";
-    if (/^[A-Fa-f0-9]{6}$/.test(trimmed))
-      return "Color";
-    if (/^rgba?\s*\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[\d.]+\s*)?\)$/i.test(trimmed))
-      return "Color";
-
-    // Link detection
-    if (/^https?:\/\//.test(trimmed))
-      return "Link";
-
-    // Code detection — before file, so `// comment` and `{ }` don't get misclassified
-    if (/^(\/\/|\/\*|#!|\*|<!--)/.test(trimmed))
-      return "Code";
-    if (/\b(function|import|export|const|let|var|class|def|return|if|else|for|while|async|await)\b/.test(preview))
-      return "Code";
-    if (/^[\{\[\(]/.test(trimmed))
-      return "Code";
-
-    // Emoji detection
-    if (trimmed.length <= 4 && trimmed.length > 0 && trimmed.charCodeAt(0) > 255)
-      return "Emoji";
-
-    // File path detection — must look like an actual path, not a comment or sentence
-    // Reject if it contains spaces before the first slash's path segment,
-    // or looks like it has natural language / operators mixed in
-    if (/^file:\/\//.test(trimmed))
-      return "File";
-    if (/^~\//.test(trimmed))
-      return "File";
-    if (/^\/[^\s/]/.test(trimmed) && !trimmed.includes(" ") || /^\/[^\s]+\//.test(trimmed) && (trimmed.match(/\//g) || []).length >= 2)
-      return "File";
-
-    return "Text";
-  }
-
-  // Process to list cliphist items
   Process {
-    id: listProc
+    id: loadNoteCardsProc
+    property int loadToken: 0
     stdout: StdioCollector {}
-
+    stderr: StdioCollector {}
     onExited: exitCode => {
-                if (exitCode !== 0) {
-                  root.items = [];
-                  root.loading = false;
-                  return;
-                }
-
-                const out = String(stdout.text);
-                const lines = out.split('\n').filter(l => l.length > 0);
-
-                const parsed = lines.map(l => {
-                                           let id = "";
-                                           let preview = "";
-                                           const m = l.match(/^(\d+)\s+(.+)$/);
-                                           if (m) {
-                                             id = m[1];
-                                             preview = m[2];
-                                           } else {
-                                             const tab = l.indexOf('\t');
-                                             id = tab > -1 ? l.slice(0, tab) : l;
-                                             preview = tab > -1 ? l.slice(tab + 1) : "";
-                                           }
-
-                                           const lower = preview.toLowerCase();
-                                           const isImage = lower.startsWith("[image]") || lower.includes(" binary data ");
-
-                                           var mime = "text/plain";
-                                           if (isImage) {
-                                             if (lower.includes(" png"))
-                                             mime = "image/png";
-                                             else if (lower.includes(" jpg") || lower.includes(" jpeg"))
-                                             mime = "image/jpeg";
-                                             else if (lower.includes(" webp"))
-                                             mime = "image/webp";
-                                             else if (lower.includes(" gif"))
-                                             mime = "image/gif";
-                                             else
-                                             mime = "image/*";
-                                           }
-
-                                           if (!root.firstSeenById[id]) {
-                                             root.firstSeenById[id] = Date.now();
-                                           }
-
-                                           return {
-                                             "id": id,
-                                             "preview": preview,
-                                             "isImage": isImage,
-                                             "mime": mime
-                                           };
-                                         });
-
-                root.items = parsed;
-                root.loading = false;
-              }
-  }
-
-  Process {
-    id: textDecodeProc
-    property string clipId: ""
-    stdout: StdioCollector {}
-
-    onExited: exitCode => {
-                const id = clipId;
-                decodeRunning = false;
-                decodeQueued[id] = false;
-                if (exitCode === 0) {
-                  decodedTextCache[id] = String(stdout.text || "");
-                  decodedRevision++;
-                }
-                startTextDecode();
-              }
-  }
-
-  // Function to pin item - use preview from items list
-  function pinItem(cliphistId) {
-    // Validate cliphistId is numeric only (prevents command injection)
-    if (!cliphistId || !/^\d+$/.test(String(cliphistId))) {
-      ToastService.showError(pluginApi?.tr("toast.invalid-clipboard-item") || "Invalid clipboard item");
-      return;
+      if (loadToken !== root.noteCardsLoadToken) return;
+      try {
+        const output = String(stdout.text || "").trim();
+        const loaded = (!output || output === "[]") ? [] : JSON.parse(output);
+        root.noteCards = (Array.isArray(loaded) ? loaded : [])
+            .filter(n => !root.deletedNoteIds[String(n.id)]);
+      } catch (_) {
+        root.noteCards = [];
+      }
+      root.noteCardsRevision++;
+      root.noteCardsLoaded = true;
     }
-
-    if (root.pinnedItems.length >= maxPinnedItems) {
-      ToastService.showWarning((pluginApi?.tr("toast.max-pinned-items") || "Maximum {max} pinned items reached").replace("{max}", maxPinnedItems));
-      return;
-    }
-
-    // Find item in current items list to get preview
-    const item = root.items.find(i => i.id === cliphistId);
-    if (!item) {
-      ToastService.showError(pluginApi?.tr("toast.item-not-found") || "Item not found in clipboard");
-      return;
-    }
-
-    const pinnedId = "pinned-" + Date.now() + "-" + cliphistId;
-
-    const newItem = {
-      id: pinnedId,
-      cliphistId: cliphistId,  // Keep original ID for image decode
-      content: "",  // Will be filled for text items
-      preview: item.preview,  // Use preview from list
-      mime: item.mime || "text/plain",
-      isImage: item.isImage || false,
-      pinnedAt: Date.now()
-    };
-
-    // Decode content (text or image data)
-    decodeProc.cliphistId = cliphistId;
-    decodeProc.pinnedItem = newItem;
-
-    if (newItem.isImage) {
-      // For images, pipe through base64 to avoid binary corruption
-      decodeProc.command = ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`];
-    } else {
-      // For text, direct decode
-      decodeProc.command = ["cliphist", "decode", String(cliphistId)];
-    }
-    decodeProc.running = true;
   }
 
-  // Process to decode content for pinning
-  Process {
-    id: decodeProc
-    property string cliphistId: ""
-    property var pinnedItem: null
-    stdout: StdioCollector {}
-
-    onExited: exitCode => {
-                if (exitCode !== 0) {
-                  ToastService.showError(pluginApi?.tr("toast.failed-to-pin") || "Failed to pin item");
-                  return;
-                }
-
-                if (pinnedItem.isImage) {
-                  // For images, stdout.text contains base64-encoded data
-                  const base64 = String(stdout.text).trim();
-                  if (!base64 || base64.length === 0) {
-                    ToastService.showError(pluginApi?.tr("toast.failed-to-pin-image") || "Failed to pin image");
-                    return;
-                  }
-
-                  // Validate image size (approximate: base64 is ~33% larger)
-                  const estimatedSize = (base64.length * 3) / 4;
-                  if (estimatedSize > root.maxPinnedImageMb) {
-                    ToastService.showWarning(pluginApi?.tr("toast.image-too-large") || "Image too large to pin (max 5MB)");
-                    return;
-                  }
-
-                  const dataUrl = "data:" + pinnedItem.mime + ";base64," + base64;
-                  pinnedItem.content = dataUrl;
-                } else {
-                  // For text, validate size (max 1MB)
-                  const textContent = String(stdout.text);
-                  if (textContent.length > root.maxPinnedTextMb) {
-                    ToastService.showWarning(pluginApi?.tr("toast.text-too-large") || "Text too large to pin (max 1MB)");
-                    return;
-                  }
-
-                  pinnedItem.content = textContent;
-                }
-
-                // Add to array
-                root.pinnedItems = [...root.pinnedItems, pinnedItem];
-
-                // Save to file
-                root.savePinnedFile();
-
-                // Delete from cliphist
-                Quickshell.execDetached(["cliphist", "delete", String(cliphistId)]);
-
-                root.pinnedRevision++;
-                ToastService.showInfo(pluginApi?.tr("toast.item-pinned") || "Item pinned");
-              }
-  }
-
-  // Function to save pinned items to file
-  function savePinnedFile() {
-    const data = {
-      items: root.pinnedItems
-    };
-    const json = JSON.stringify(data, null, 2);
-
-    // Use base64 encoding to safely pass JSON through shell
-    // Qt.btoa() produces valid base64 (A-Z, a-z, 0-9, +, /, =) - no shell metacharacters
-    // File path is constant, not user-controlled
-    const base64 = Qt.btoa(json);
-    const filePath = clipboardPlusConfigDir + "/pinned.json";
-
-    Quickshell.execDetached(["sh", "-c", `echo "${base64}" | base64 -d > "${filePath}"`]);
-  }
-
-  // Function to unpin item
-  function unpinItem(pinnedId) {
-    root.pinnedItems = root.pinnedItems.filter(item => item.id !== pinnedId);
-    root.savePinnedFile();
-    root.pinnedRevision++;
-    ToastService.showInfo(pluginApi?.tr("toast.item-unpinned") || "Item unpinned");
-  }
-
-  // ==================== SCRATCHPAD FUNCTIONS ====================
-
-  // Function to create a new scratchpad note
   function createNoteCard(initialText) {
     if (root.noteCards.length >= maxNoteCards) {
-      ToastService.showWarning((pluginApi?.tr("toast.max-notes") || "Maximum {max} notes reached").replace("{max}", maxNoteCards));
+      ToastService.showWarning(("Maximum {max} notes reached").replace("{max}", maxNoteCards));
       return null;
     }
-
     const timestamp = Date.now();
-    const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const noteId = "note_" + timestamp + "_" + randomSuffix;
-
-    // Cascade positioning: offset by 30px for each new note
-    const cascadeOffset = (root.noteCards.length % 10) * 30;
-    const baseX = 20 + cascadeOffset;
-    const baseY = 80 + cascadeOffset;
-
-    // Find highest z-index
-    let maxZ = 0;
-    for (let i = 0; i < root.noteCards.length; i++) {
-      if (root.noteCards[i].zIndex > maxZ) {
-        maxZ = root.noteCards[i].zIndex;
-      }
-    }
-
+    const noteId = "note_" + timestamp + "_" + Math.random().toString(36).substring(2, 8);
+    const offset = (root.noteCards.length % 10) * 30;
+    const maxZ = root.noteCards.reduce((z, n) => Math.max(z, n.zIndex || 0), 0);
     const newNote = {
-      id: noteId,
-      title: "",
-      content: initialText || "",
-      x: baseX,
-      y: baseY,
-      width: 350,
-      height: 280,
-      zIndex: maxZ + 1,
-      color: "yellow",
-      createdAt: new Date().toISOString(),
-      lastModified: new Date().toISOString()
+      id: noteId, title: "", content: initialText || "",
+      x: 20 + offset, y: 80 + offset, width: 350, height: 280,
+      zIndex: maxZ + 1, color: "yellow",
+      createdAt: new Date().toISOString(), lastModified: new Date().toISOString()
     };
-
-    // Immutable array update
-    const newNotes = root.noteCards.slice();
-    newNotes.push(newNote);
-    root.noteCards = newNotes;
+    root.noteCards = [...root.noteCards, newNote];
     root.noteCardsRevision++;
     root.noteCardsLoadToken++;
-
-    // Save to file
     saveNoteCard(newNote);
-
-    ToastService.showInfo(pluginApi?.tr("toast.note-created") || "Note created");
+    ToastService.showInfo("Note created");
     return noteId;
   }
 
-  // Function to update a note card
   function updateNoteCard(noteId, updates) {
     const index = root.noteCards.findIndex(n => n.id === noteId);
-    if (index === -1) {
-      return;
-    }
-
-    const note = root.noteCards[index];
-    Object.assign(note, updates, {
-      lastModified: new Date().toISOString()
-    });
+    if (index === -1) return;
+    Object.assign(root.noteCards[index], updates, { lastModified: new Date().toISOString() });
     root.noteCardsRevision++;
     root.noteCardsLoadToken++;
-
-    // Save to file
-    saveNoteCard(note);
+    saveNoteCard(root.noteCards[index]);
   }
 
-  // Update note data in memory only (no disk write)
   function updateNoteCardInMemory(noteId, updates) {
     const index = root.noteCards.findIndex(n => n.id === noteId);
-    if (index === -1) {
-      return;
-    }
-
-    const note = root.noteCards[index];
-    Object.assign(note, updates, {
-      lastModified: new Date().toISOString()
-    });
+    if (index === -1) return;
+    Object.assign(root.noteCards[index], updates, { lastModified: new Date().toISOString() });
     root.noteCardsRevision++;
     root.noteCardsLoadToken++;
   }
 
   function saveNoteCardById(noteId) {
     const note = root.noteCards.find(n => n.id === noteId);
-    if (!note)
-      return;
-    saveNoteCard(note);
+    if (note) saveNoteCard(note);
   }
 
-  // Function to delete a note card
   function deleteNoteCard(noteId) {
     const note = root.noteCards.find(n => n.id === noteId);
     if (note) {
       root.deletedNoteIds[String(noteId)] = true;
-      const filename = getNoteFilename(note);
-      const filePath = root.noteCardsDir + "/" + filename;
-      Quickshell.execDetached(["rm", "-f", filePath]);
-
-      // Delete all exported .txt files - validate each filename before deletion
+      Quickshell.execDetached(["rm", "-f", root.noteCardsDir + "/" + getNoteFilename(note)]);
       const safePattern = /^notecard_\d{6}-\d{6}\.txt$/;
-      const exportedFiles = note.exportedFiles || [];
-      for (let i = 0; i < exportedFiles.length; i++) {
-        if (safePattern.test(exportedFiles[i])) {
-          const exportedPath = root.exportBasePath + "/" + exportedFiles[i];
-          Quickshell.execDetached(["rm", "-f", exportedPath]);
-        }
-      }
+      (note.exportedFiles || []).forEach(f => {
+        if (safePattern.test(f))
+          Quickshell.execDetached(["rm", "-f", root.exportBasePath + "/" + f]);
+      });
     }
-
     root.noteCards = root.noteCards.filter(n => n.id !== noteId);
     root.noteCardsRevision++;
     root.noteCardsLoadToken++;
-    ToastService.showInfo(pluginApi?.tr("toast.note-deleted") || "Note deleted");
+    ToastService.showInfo("Note deleted");
   }
 
-  // Function to clear all note cards and delete files from disk
   function clearAllNoteCards() {
     const safePattern = /^notecard_\d{6}-\d{6}\.txt$/;
-    for (let i = 0; i < root.noteCards.length; i++) {
-      const note = root.noteCards[i];
-
-      // Delete the .json notecard file from notecards directory
-      const filename = getNoteFilename(note);
-      const filePath = root.noteCardsDir + "/" + filename;
-      Quickshell.execDetached(["rm", "-f", filePath]);
-
-      // Delete any exported .txt files
-      const exportedFiles = note.exportedFiles || [];
-      for (let j = 0; j < exportedFiles.length; j++) {
-        if (safePattern.test(exportedFiles[j])) {
-          const exportedPath = root.exportBasePath + "/" + exportedFiles[j];
-          Quickshell.execDetached(["rm", "-f", exportedPath]);
-        }
-      }
-    }
-
+    root.noteCards.forEach(note => {
+      Quickshell.execDetached(["rm", "-f", root.noteCardsDir + "/" + getNoteFilename(note)]);
+      (note.exportedFiles || []).forEach(f => {
+        if (safePattern.test(f))
+          Quickshell.execDetached(["rm", "-f", root.exportBasePath + "/" + f]);
+      });
+    });
     root.noteCards = [];
     root.noteCardsRevision++;
     root.noteCardsLoadToken++;
     root.deletedNoteIds = ({});
-    ToastService.showInfo(pluginApi?.tr("toast.notes-cleared") || "All notes cleared");
+    ToastService.showInfo("All notes cleared");
   }
 
-  // Function to export scratchpad note to .txt file
   function exportNoteCard(noteId) {
     const note = root.noteCards.find(n => n.id === noteId);
-    if (!note) {
-      ToastService.showError(pluginApi?.tr("toast.note-not-found") || "Note not found");
-      return;
-    }
-
+    if (!note) { ToastService.showError("Note not found"); return; }
     const now = new Date();
-    const timestamp = now.getFullYear().toString().slice(-2) + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + "-" + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
-    const fileName = "notecard_" + timestamp + ".txt";
+    const ts = now.getFullYear().toString().slice(-2)
+        + String(now.getMonth() + 1).padStart(2, '0')
+        + String(now.getDate()).padStart(2, '0') + "-"
+        + String(now.getHours()).padStart(2, '0')
+        + String(now.getMinutes()).padStart(2, '0')
+        + String(now.getSeconds()).padStart(2, '0');
+    const fileName = "notecard_" + ts + ".txt";
     const filePath = root.exportBasePath + "/" + fileName;
     Quickshell.execDetached(["mkdir", "-p", root.exportBasePath]);
-
-    // Use base64 encoding to safely pass content through shell
     const title = (note.title || "").trim();
-    const body = note.content || "";
-    const exportText = title.length > 0 ? (title + "\n---\n" + body) : body;
-    const base64 = Qt.btoa(exportText);
-    Quickshell.execDetached(["sh", "-c", `echo "${base64}" | base64 -d > "${filePath}"`]);
-
-    // Store exported filename - append to list so all exports are tracked
-    const existingExports = note.exportedFiles || [];
-    root.updateNoteCard(noteId, {
-                          exportedFiles: [...existingExports, fileName]
-                        });
-
-    ToastService.showInfo((pluginApi?.tr("toast.note-exported") || "Note exported to ~/Documents/{fileName}").replace("{fileName}", fileName));
+    const exportText = title.length > 0 ? (title + "\n---\n" + (note.content || "")) : (note.content || "");
+    Quickshell.execDetached(["sh", "-c", `echo "${Qt.btoa(exportText)}" | base64 -d > "${filePath}"`]);
+    root.updateNoteCard(noteId, { exportedFiles: [...(note.exportedFiles || []), fileName] });
+    ToastService.showInfo(("Note exported to ~/Documents/{f}").replace("{f}", fileName));
   }
 
-  // Helper function to generate safe filename from note id (stable)
-  function getNoteFilename(note) {
-    if (!note) {
-      return "untitled.json";
-    }
-
-    let safeId = String(note.id || "untitled");
-    safeId = safeId.replace(/[^a-zA-Z0-9-_]/g, '_');
-    return safeId + ".json";
-  }
-
-  // Function to save individual notecard to file (per-note JSON)
-  function saveNoteCard(note) {
-    if (!note)
-      return;
-    const filename = getNoteFilename(note);
-    const filePath = root.noteCardsDir + "/" + filename;
-    const json = JSON.stringify(note, null, 2);
-    const base64 = Qt.btoa(json);
-    Quickshell.execDetached(["sh", "-c", `echo "${base64}" | base64 -d > "${filePath}"`]);
-  }
-
-  // Function to bring note to front (update z-index)
   function bringNoteToFront(noteId) {
     const index = root.noteCards.findIndex(n => n.id === noteId);
-    if (index === -1)
-      return;
-
-    // Find highest z-index
-    let maxZ = 0;
-    for (let i = 0; i < root.noteCards.length; i++) {
-      if (root.noteCards[i].zIndex > maxZ) {
-        maxZ = root.noteCards[i].zIndex;
-      }
-    }
-
-    // Only update if not already at front
-    if (root.noteCards[index].zIndex < maxZ) {
-      root.updateNoteCard(noteId, {
-                            zIndex: maxZ + 1
-                          });
-    }
+    if (index === -1) return;
+    const maxZ = root.noteCards.reduce((z, n) => Math.max(z, n.zIndex || 0), 0);
+    if (root.noteCards[index].zIndex < maxZ)
+      root.updateNoteCard(noteId, { zIndex: maxZ + 1 });
   }
 
-  // Process for copying pinned images to clipboard
-  Process {
-    id: copyPinnedImageProc
-    command: ["wl-copy"]
-    running: false
-    stdinEnabled: true
-
-    onExited: exitCode => {
-                if (exitCode === 0) {
-                  ToastService.showInfo(pluginApi?.tr("toast.copied-to-clipboard") || "Copied to clipboard");
-                } else {
-                  ToastService.showError(pluginApi?.tr("toast.failed-to-copy-image") || "Failed to copy image");
-                }
-                stdinEnabled = true;  // Re-enable for next use
-              }
+  function appendTextToNoteCard(noteId, text) {
+    const note = root.noteCards.find(n => n.id === noteId);
+    if (!note) { ToastService.showError("Note not found"); return; }
+    const newContent = note.content ? note.content + "\n" + text : text;
+    root.updateNoteCard(noteId, { content: newContent });
+    ToastService.showInfo("Text added to note");
   }
 
-  // Process for copying pinned text to clipboard
-  Process {
-    id: copyPinnedTextProc
-    command: ["wl-copy", "--"]
-    running: false
-    stdinEnabled: true
-
-    onExited: exitCode => {
-                if (exitCode === 0) {
-                  ToastService.showInfo(pluginApi?.tr("toast.copied-to-clipboard") || "Copied to clipboard");
-                } else {
-                  ToastService.showError(pluginApi?.tr("toast.failed-to-copy-text") || "Failed to copy text");
-                }
-                stdinEnabled = true;  // Re-enable for next use
-              }
+  function getNoteFilename(note) {
+    if (!note) return "untitled.json";
+    return String(note.id || "untitled").replace(/[^a-zA-Z0-9-_]/g, '_') + ".json";
   }
 
-  // Function to copy pinned item to clipboard
-  function copyPinnedToClipboard(pinnedId) {
-    const item = root.pinnedItems.find(i => i.id === pinnedId);
-    if (!item) {
-      return;
-    }
-
-    if (item.isImage && item.content) {
-      // For images, decode base64 and copy binary data
-      // Extract base64 from data URL: data:image/png;base64,iVBORw0K...
-      const matches = item.content.match(/^data:([^;]+);base64,(.+)$/);
-      if (!matches) {
-        ToastService.showError(pluginApi?.tr("toast.failed-to-copy-image") || "Failed to copy image");
-        return;
-      }
-
-      const mimeType = matches[1];
-      const base64Data = matches[2];
-
-      // Decode base64 to binary in JavaScript (no shell commands)
-      const binaryStr = Qt.atob(base64Data);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i);
-      }
-
-      // Copy binary data directly via Process stdin
-      copyPinnedImageProc.running = true;
-      copyPinnedImageProc.write(bytes);
-      copyPinnedImageProc.stdinEnabled = false;  // Close stdin to signal EOF
-    } else {
-      // For text, copy via Process stdin (no shell interpolation)
-      copyPinnedTextProc.running = true;
-      copyPinnedTextProc.write(item.content || "");
-      copyPinnedTextProc.stdinEnabled = false;  // Close stdin to signal EOF
-    }
+  function saveNoteCard(note) {
+    if (!note) return;
+    const filePath = root.noteCardsDir + "/" + getNoteFilename(note);
+    Quickshell.execDetached(["sh", "-c", `echo "${Qt.btoa(JSON.stringify(note, null, 2))}" | base64 -d > "${filePath}"`]);
   }
 
-  // Image handling functions
-  function getImageData(cliphistId) {
-    return root.imageCache[cliphistId] || "";
-  }
-
-  function decodeToDataUrl(cliphistId, mimeType, callback) {
-    // Validate cliphistId is numeric only (prevents command injection)
-    if (!cliphistId || !/^\d+$/.test(String(cliphistId))) {
-      return;
-    }
-
-    // Check cache first
-    if (root.imageCache[cliphistId]) {
-      if (callback)
-        callback(root.imageCache[cliphistId]);
-      return;
-    }
-
-    // Decode and encode to base64 in one shell command (like official ClipboardService)
-    imageDecodeProc.cliphistId = cliphistId;
-    imageDecodeProc.mimeType = mimeType || "image/png";
-    imageDecodeProc.callback = callback;
-    // Use shell to pipe: cliphist decode ID | base64 -w 0
-    imageDecodeProc.command = ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`];
-    imageDecodeProc.running = true;
-  }
-
-  // Process to decode image from cliphist and encode to base64
-  Process {
-    id: imageDecodeProc
-    property string cliphistId: ""
-    property string mimeType: "image/png"
-    property var callback: null
-    stdout: StdioCollector {}
-
-    onExited: exitCode => {
-                if (exitCode !== 0) {
-                  return;
-                }
-
-                // Read base64-encoded text output
-                const base64 = String(stdout.text).trim();
-                if (!base64 || base64.length === 0) {
-                  return;
-                }
-
-                // Validate size (approximate: base64 is ~33% larger than binary)
-                const estimatedSize = (base64.length * 3) / 4;
-                if (estimatedSize > maxPreviewImageSize) {
-                  return;
-                }
-
-                const dataUrl = "data:" + mimeType + ";base64," + base64;
-
-                // Cache it with LRU eviction
-                root.addToImageCache(cliphistId, dataUrl);
-
-                if (callback)
-                callback(dataUrl);
-              }
-  }
-
-  // Process to get selected text (primary selection) - for ToDo integration
-  Process {
-    id: getSelectionProcess
-    command: ["wl-paste", "-p", "-n"]
-    stdout: StdioCollector {
-      id: selectionStdout
-    }
-    onExited: (exitCode, exitStatus) => {
-                if (exitCode === 0) {
-                  const selectedText = selectionStdout.text.trim();
-                  if (selectedText && selectedText.length > 0) {
-                    root.addTodoWithText(selectedText, root.pendingPageId);
-                  } else {
-                    ToastService.showError(pluginApi?.tr("toast.no-text-selected") || "No text selected");
-                  }
-                } else {
-                  ToastService.showError(pluginApi?.tr("toast.failed-to-get-selection") || "Failed to get selection");
-                }
-              }
-  }
+  // ══════════════════════════════════════════════════════════════════════════
+  // TODO
+  // ══════════════════════════════════════════════════════════════════════════
 
   function ensureTodoData() {
-    if (!Array.isArray(root.todoPages) || root.todoPages.length === 0) {
+    if (!Array.isArray(root.todoPages) || root.todoPages.length === 0)
       root.todoPages = [{ id: 1, name: "Inbox" }];
-    }
-    if (!Array.isArray(root.todos)) {
-      root.todos = [];
-    }
-    return {
-      pages: root.todoPages,
-      todos: root.todos
-    };
+    if (!Array.isArray(root.todos)) root.todos = [];
+    return { pages: root.todoPages, todos: root.todos };
   }
 
   function saveTodoFile() {
-    const data = {
-      pages: root.todoPages,
-      todos: root.todos
-    };
-    const json = JSON.stringify(data, null, 2);
-    todoFile.setText(json);
+    todoFile.setText(JSON.stringify({ pages: root.todoPages, todos: root.todos }, null, 2));
   }
 
-  // Add todo with text to specified page (stored in ClipBoard+ settings)
   function addTodoWithText(text, pageId) {
-    if (!text || text.length === 0) {
-      ToastService.showError(pluginApi?.tr("toast.no-text-to-add") || "No text to add");
-      return;
-    }
-
-    const trimmedText = text.substring(0, maxTodoTextLength);
-    const normalizedText = trimmedText.replace(/\s+/g, " ").trim();
+    if (!text?.length) { ToastService.showError("No text to add"); return; }
+    const normalizedText = text.substring(0, maxTodoTextLength).replace(/\s+/g, " ").trim();
     const store = ensureTodoData();
-    const targetPageId = pageId || (store.pages[0] ? store.pages[0].id : 1);
-
-    var newTodo = {
-      id: Date.now(),
-      text: normalizedText,
-      completed: false,
-      createdAt: new Date().toISOString(),
-      pageId: targetPageId,
-      priority: "medium",
-      details: ""
-    };
-
-    const newTodos = store.todos.slice();
-    newTodos.push(newTodo);
-    root.todos = newTodos;
+    const targetPageId = pageId || store.pages[0]?.id || 1;
+    root.todos = [...store.todos, {
+      id: Date.now(), text: normalizedText, completed: false,
+      createdAt: new Date().toISOString(), pageId: targetPageId,
+      priority: "medium", details: ""
+    }];
     root.todoRevision++;
     saveTodoFile();
-
-    ToastService.showInfo(pluginApi?.tr("toast.added-to-todo") || "Added to ToDo");
-
-    // Also copy to clipboard
+    ToastService.showInfo("Added to ToDo");
     Quickshell.execDetached(["wl-copy", "--", text]);
   }
 
   function toggleTodo(todoId) {
     const idx = root.todos.findIndex(t => t.id === todoId);
-    if (idx === -1)
-      return;
-    const updated = Object.assign({}, root.todos[idx], {
-      completed: !root.todos[idx].completed
-    });
+    if (idx === -1) return;
     const newTodos = root.todos.slice();
-    newTodos[idx] = updated;
+    newTodos[idx] = Object.assign({}, root.todos[idx], { completed: !root.todos[idx].completed });
     root.todos = newTodos;
     root.todoRevision++;
     saveTodoFile();
@@ -950,8 +744,7 @@ Item {
 
   function deleteTodo(todoId) {
     const idx = root.todos.findIndex(t => t.id === todoId);
-    if (idx === -1)
-      return;
+    if (idx === -1) return;
     const newTodos = root.todos.slice();
     newTodos.splice(idx, 1);
     root.todos = newTodos;
@@ -959,386 +752,87 @@ Item {
     saveTodoFile();
   }
 
-  // Process for copying to clipboard (direct pipe: cliphist decode | wl-copy)
-  Process {
-    id: copyToClipboardProc
-    property string clipboardId: ""
-    stdout: StdioCollector {}
+  // ══════════════════════════════════════════════════════════════════════════
+  // TEXT FETCH HELPER 
+  // ══════════════════════════════════════════════════════════════════════════
+  // source: "clipboard" | "selection"
+  // callback: function(text) — called only on non-empty success
 
-    onExited: exitCode => {
-                if (exitCode !== 0) {
-                  ToastService.showError(pluginApi?.tr("toast.failed-to-copy") || "Failed to copy to clipboard");
-                }
-              }
-  }
+  property var _fetchCallbacks: []
 
-  // Poll clipboard text while panel is visible (widget-safe)
-  property string lastClipboardText: ""
-
-  Timer {
-    id: clipboardPollTimer
-    interval: 500
-    repeat: true
-    running: root.panelVisible && (pluginApi?.pluginSettings?.listenClipboardWhileOpen ?? false)
-    onTriggered: {
-      if (!clipboardPollProc.running) {
-        clipboardPollProc.running = true;
-      }
-    }
-  }
-
-  Process {
-    id: clipboardPollProc
-    command: ["wl-paste", "-n", "-t", "text"]
-    stdout: StdioCollector {}
-    onExited: exitCode => {
-      if (exitCode !== 0) return;
-      const text = String(stdout.text || "");
-      if (text !== root.lastClipboardText) {
-        root.lastClipboardText = text;
-        root.list();
-      }
-    }
-  }
-
-  // Clipboard management functions
-  function list(maxPreviewWidth) {
-    if (listProc.running)
-      return;
-    root.loading = true;
-    const width = (maxPreviewWidth !== undefined && maxPreviewWidth !== null)
-        ? maxPreviewWidth
-        : root.previewWidth;
-    root.previewWidth = width;
-    listProc.command = ["cliphist", "list", "-preview-width", String(width)];
-    listProc.running = true;
-  }
-
-  function getDecodedText(id) {
-    return decodedTextCache[id] || "";
-  }
-
-  function queueTextDecode(id) {
-    if (!(pluginApi?.pluginSettings?.enableFullTextDecode ?? false)) return;
-    if (!id) return;
-    if (decodedTextCache[id]) return;
-    if (decodeQueued[id]) return;
-    decodeQueued[id] = true;
-    decodeQueue.push(id);
-    startTextDecode();
-  }
-
-  function queueTextDecodes(itemsList) {
-    if (!(pluginApi?.pluginSettings?.enableFullTextDecode ?? false)) return;
-    for (let i = 0; i < itemsList.length; i++) {
-      const it = itemsList[i];
-      if (!it || it.isImage) continue;
-      queueTextDecode(it.id);
-    }
-  }
-
-  function queueTextDecodesRange(itemsList, startIndex, endIndex) {
-    if (!(pluginApi?.pluginSettings?.enableFullTextDecode ?? false)) return;
-    if (!itemsList || itemsList.length === 0) return;
-    let start = Math.max(0, startIndex);
-    let end = Math.min(itemsList.length - 1, endIndex);
-    if (end < start) return;
-    for (let i = start; i <= end; i++) {
-      const it = itemsList[i];
-      if (!it || it.isImage) continue;
-      queueTextDecode(it.id);
-    }
-  }
-
-  function startTextDecode() {
-    if (decodeRunning) return;
-    if (decodeQueue.length === 0) return;
-    const id = decodeQueue.shift();
-    decodeRunning = true;
-    textDecodeProc.clipId = id;
-    textDecodeProc.command = ["cliphist", "decode", String(id)];
-    textDecodeProc.running = true;
-  }
-
-  function copyToClipboard(id) {
-    // Validate id is numeric only (prevents command injection)
-    if (!id || !/^\d+$/.test(String(id))) {
-      ToastService.showError(pluginApi?.tr("toast.invalid-clipboard-item") || "Invalid clipboard item");
-      return;
-    }
-
-    // Use shell pipe: cliphist decode ID | wl-copy
-    // ID is validated to be numeric only, so this is safe from command injection
-    copyToClipboardProc.clipboardId = id;
-    copyToClipboardProc.command = ["sh", "-c", `cliphist decode ${id} | wl-copy`];
-    copyToClipboardProc.running = true;
-  }
-
-  function deleteById(id) {
-    // Validate id is numeric only (prevents command injection)
-    if (!id || !/^\d+$/.test(String(id))) {
-      ToastService.showError(pluginApi?.tr("toast.invalid-clipboard-item") || "Invalid clipboard item");
-      return;
-    }
-
-    // cliphist delete needs the full line (ID + preview) via stdin
-    // ID is validated to be numeric-only, so string interpolation is safe here
-    deleteItemProc.command = ["sh", "-c", `cliphist list | grep "^${id}	" | cliphist delete`];
-    deleteItemProc.running = true;
-  }
-
-  // Process for deleting clipboard item
-  Process {
-    id: deleteItemProc
-    stdout: StdioCollector {}
-
-    onExited: exitCode => {
-                // Refresh list immediately after deletion
-                root.list();
-              }
-  }
-
-  function wipeAll() {
-    wipeProc.running = true;
-  }
-
-  // Process for wiping all clipboard history
-  Process {
-    id: wipeProc
-    command: ["cliphist", "wipe"]
-
-    onExited: exitCode => {
-                // Clear caches and refresh list
-                root.clearCaches();
-                root.list();
-              }
-  }
-
-  // Add selected text to specific page
-  function addSelectedToPage(pageId) {
-    root.pendingPageId = pageId;
-    getSelectionProcess.running = true;
-  }
-
-  function ipcOpenPanel() {
-    if (root.pluginApi) {
-      root.pluginApi.withCurrentScreen(screen => {
-                                         root.pluginApi.openPanel(screen);
-                                       });
-    }
-  }
-
-  function ipcClosePanel() {
-    if (root.pluginApi) {
-      root.pluginApi.withCurrentScreen(screen => {
-                                         root.pluginApi.closePanel(screen);
-                                       });
-    }
-  }
-
-  function ipcTogglePanel() {
-    if (root.pluginApi) {
-      root.pluginApi.withCurrentScreen(screen => {
-                                         root.pluginApi.togglePanel(screen);
-                                       });
-    }
-  }
-
-  IpcHandler {
-    target: "plugin:clipboardPlus"
-
-    function openPanel() { ipcOpenPanel() }
-    function closePanel() { ipcClosePanel() }
-    function togglePanel() { ipcTogglePanel() }
-
-    // Alias for keybind compatibility
-    function toggle() { ipcTogglePanel() }
-
-    // Pinned items IPC handlers
-    function pinClipboardItem(cliphistId: string) {
-      root.pinItem(cliphistId);
-    }
-
-    function unpinItem(pinnedId: string) {
-      root.unpinItem(pinnedId);
-    }
-
-    function copyPinned(pinnedId: string) {
-      root.copyPinnedToClipboard(pinnedId);
-    }
-
-    // Add clipboard text directly to ToDo
-    // Usage: dms ipc call clipboardPlus addClipboardToTodo
-    function addClipboardToTodo() {
-      root.getClipboardAndAddTodoImmediate();
-    }
-
-    // NoteCards IPC handlers
-    // Usage: dms ipc call clipboardPlus addNoteCard "Quick note"
-    function addNoteCard(text: string) {
-      const initialText = text || "";
-      root.createNoteCard(initialText);
-    }
-
-    // Usage: dms ipc call clipboardPlus exportNoteCard "note_123_abc"
-    function exportNoteCard(noteId: string) {
-      root.exportNoteCard(noteId);
-    }
-
-    // Add clipboard text to existing note or create new one
-    // Usage: dms ipc call clipboardPlus addClipboardToNoteCard
-    function addClipboardToNoteCard() {
-      root.getClipboardAndShowNoteSelector();
-    }
-  }
-
-  IpcHandler {
-    target: "clipboardPlus"
-
-    function openPanel() { ipcOpenPanel() }
-    function closePanel() { ipcClosePanel() }
-    function togglePanel() { ipcTogglePanel() }
-    function toggle() { ipcTogglePanel() }
-    function addClipboardToTodo() { root.getClipboardAndAddTodoImmediate() }
-    function addSelectionToTodo() { root.getClipboardAndAddTodoImmediate() }
-    function addNoteCard(text: string) { root.createNoteCard(text || "") }
-    function exportNoteCard(noteId: string) { root.exportNoteCard(noteId) }
-    function addClipboardToNoteCard() { root.getClipboardAndShowNoteSelector() }
-    function addSelectionToNoteCard() { root.getClipboardAndShowNoteSelector() }
-    function pinClipboardItem(cliphistId: string) { root.pinItem(cliphistId) }
-    function unpinItem(pinnedId: string) { root.unpinItem(pinnedId) }
-    function copyPinned(pinnedId: string) { root.copyPinnedToClipboard(pinnedId) }
-  }
-
-  // Process to get selected text for ToDo selector
-  Process {
-    id: getSelectionForSelectorProcess
-    command: ["sh", "-c", "t=$(wl-paste -p -n 2>/dev/null || true); if [ -z \"$t\" ]; then t=$(wl-paste -n 2>/dev/null || true); fi; printf '%s' \"$t\""]
-    stdout: StdioCollector {
-      id: selectorSelectionStdout
-    }
-    onExited: (exitCode, exitStatus) => {
-                if (exitCode === 0) {
-                  const selectedText = selectorSelectionStdout.text.trim();
-                  if (selectedText && selectedText.length > 0) {
-                    root.showTodoPageSelector(selectedText);
-                  } else {
-                    ToastService.showError(pluginApi?.tr("toast.no-text-selected") || "No text selected");
-                  }
-                } else {
-                  ToastService.showError(pluginApi?.tr("toast.failed-to-get-selection") || "Failed to get selection");
-                }
-              }
-  }
-
-  // Get selection and show page selector
-  function getSelectionAndShowSelector() {
-    getSelectionForSelectorProcess.running = true;
-  }
-
-  // Process to get selected text for direct ToDo add
-  Process {
-    id: getSelectionForTodoImmediateProcess
-    command: ["sh", "-c", "t=$(wl-paste -p -n 2>/dev/null || true); if [ -z \"$t\" ]; then t=$(wl-paste -n 2>/dev/null || true); fi; printf '%s' \"$t\""]
-    stdout: StdioCollector {
-      id: todoImmediateSelectionStdout
-    }
-    onExited: (exitCode, exitStatus) => {
-                if (exitCode === 0) {
-                  const selectedText = todoImmediateSelectionStdout.text.trim();
-                  if (selectedText && selectedText.length > 0) {
-                    Quickshell.execDetached(["wl-copy", "--", selectedText]);
-                    root.addTodoWithText(selectedText, 0);
-                  } else {
-                    ToastService.showError(pluginApi?.tr("toast.no-text-selected") || "No text selected");
-                  }
-                } else {
-                  ToastService.showError(pluginApi?.tr("toast.failed-to-get-selection") || "Failed to get selection");
-                }
-              }
-  }
-
-  function getSelectionAndAddTodoImmediate() {
-    getSelectionForTodoImmediateProcess.running = true;
-  }
-
-  // Process to get clipboard text for direct ToDo add (IPC)
-  Process {
-    id: getClipboardForTodoImmediateProcess
-    command: ["wl-paste", "-n"]
-    stdout: StdioCollector {
-      id: todoClipboardStdout
-    }
-    onExited: (exitCode, exitStatus) => {
-                if (exitCode === 0) {
-                  const clipboardText = todoClipboardStdout.text.trim();
-                  if (clipboardText && clipboardText.length > 0) {
-                    Quickshell.execDetached(["wl-copy", "--", clipboardText]);
-                    root.addTodoWithText(clipboardText, 0);
-                  } else {
-                    ToastService.showError(pluginApi?.tr("toast.no-text-selected") || "No text selected");
-                  }
-                } else {
-                  ToastService.showError(pluginApi?.tr("toast.failed-to-get-selection") || "Failed to get selection");
-                }
-              }
-  }
-
-  function getClipboardAndAddTodoImmediate() {
-    getClipboardForTodoImmediateProcess.running = true;
-  }
-
-  // Refresh clipboard list when panel opens
-  function refreshOnPanelOpen() {
-    root.list();
-  }
-
-  // Show ToDo page selector at cursor position
-  function showTodoPageSelector(text) {
-    root.activeSelector = "todo";
-    root.activeSelector = "todo";
-    root.pendingSelectedText = text;
-
-    // Get pages from ClipBoard+ settings
-    const store = ensureTodoData();
-    const todoPages = store.pages || [];
-
-    // Show selector with pages list
-    if (todoPageSelector) {
-      todoPageSelector.show(text, todoPages);
+  function fetchTextThen(source, callback) {
+    _fetchCallbacks.push(callback);
+    if (source === "clipboard") {
+      fetchTextProc.command = ["wl-paste", "-n"];
     } else {
-      ToastService.showError(pluginApi?.tr("toast.could-not-open-todo") || "Could not open ToDo selector");
+      // Try primary selection, fall back to clipboard
+      fetchTextProc.command = ["sh", "-c",
+        "t=$(wl-paste -p -n 2>/dev/null || true); " +
+        "[ -z \"$t\" ] && t=$(wl-paste -n 2>/dev/null || true); printf '%s' \"$t\""];
+    }
+    fetchTextProc.running = true;
+  }
+
+  Process {
+    id: fetchTextProc
+    stdout: StdioCollector {}
+    onExited: (exitCode) => {
+      const cb = root._fetchCallbacks.shift();
+      if (exitCode !== 0 || !cb) { ToastService.showError("Failed to get text"); return; }
+      const text = String(stdout.text || "").trim();
+      if (!text.length) { ToastService.showError("No text found"); return; }
+      cb(text);
     }
   }
 
-  // Handle page selection from selector
+  // ── Convenience wrappers kept for Panel.qml call-sites ────────────────────
+  function addSelectedToPage(pageId) {
+    fetchTextThen("selection", t => addTodoWithText(t, pageId));
+  }
+  function getClipboardAndAddTodoImmediate() {
+    fetchTextThen("clipboard", t => { Quickshell.execDetached(["wl-copy", "--", t]); addTodoWithText(t, 0); });
+  }
+  function getSelectionAndAddTodoImmediate() {
+    fetchTextThen("selection", t => { Quickshell.execDetached(["wl-copy", "--", t]); addTodoWithText(t, 0); });
+  }
+  function getClipboardAndShowNoteSelector() {
+    fetchTextThen("clipboard", t => { Quickshell.execDetached(["wl-copy", "--", t]); showSelector("notecard", t); });
+  }
+  function getSelectionAndShowNoteSelector() {
+    fetchTextThen("selection",  t => { Quickshell.execDetached(["wl-copy", "--", t]); showSelector("notecard", t); });
+  }
+  function getSelectionAndShowSelector() {
+    fetchTextThen("selection", t => showTodoPageSelector(t));
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SELECTORS  (todo page / note card)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Unified entry point
+  function showSelector(type, text) {
+    root.activeSelector = type;
+    if (type === "todo") {
+      root.pendingSelectedText = text;
+      todoPageSelector?.show(text, ensureTodoData().pages);
+    } else {
+      root.pendingNoteCardText = text;
+      root.loadNoteCards();
+      Qt.callLater(() => noteCardSelector?.show(text, root.noteCards));
+    }
+  }
+
+  // Keep legacy name working
+  function showTodoPageSelector(text) { showSelector("todo", text); }
+  function showNoteCardSelector(text)  { showSelector("notecard", text); }
+
   function handleTodoPageSelected(pageId, pageName) {
     if (root.pendingSelectedText) {
       root.addTodoWithText(root.pendingSelectedText, pageId);
       root.pendingSelectedText = "";
     }
   }
-  // Get selection and show note card selector
-  function getSelectionAndShowNoteSelector() {
-    getSelectionForNoteSelectorProcess.running = true;
-  }
-  function showNoteCardSelector(text) {
-    root.activeSelector = "notecard";
-    root.activeSelector = "notecard";
-    root.pendingNoteCardText = text;
-    // Load notecards first
-    root.loadNoteCards();
-    // Wait a bit for notes to load, then show selector
-    Qt.callLater(() => {
-                   if (noteCardSelector) {
-                     noteCardSelector.show(text, root.noteCards);
-                   } else {
-                     ToastService.showError(pluginApi?.tr("toast.could-not-open-note-selector") || "Could not open note selector");
-                   }
-                 });
-  }
 
-  // Handle note selection from selector
   function handleNoteCardSelected(noteId, noteTitle) {
     if (root.pendingNoteCardText) {
       root.appendTextToNoteCard(noteId, root.pendingNoteCardText);
@@ -1346,23 +840,17 @@ Item {
     }
   }
 
-  // Handle creating new note from selection
-  // Handle creating new ToDo page from selection
   function handleCreateNewTodoPage() {
-    if (root.pendingSelectedText) {
-      const store = ensureTodoData();
-      const pageId = Date.now();
-      const pageName = root.pendingSelectedText.substring(0, 24) || "New Page";
-      const newPages = store.pages.slice();
-      newPages.push({ id: pageId, name: pageName });
-      root.todoPages = newPages;
-      root.todoRevision++;
-      saveTodoFile();
-
-      root.addTodoWithText(root.pendingSelectedText, pageId);
-      ToastService.showInfo(pluginApi?.tr("toast.todo-page-created") || "New ToDo page created");
-      root.pendingSelectedText = "";
-    }
+    if (!root.pendingSelectedText) return;
+    const store = ensureTodoData();
+    const pageId = Date.now();
+    const pageName = root.pendingSelectedText.substring(0, 24) || "New Page";
+    root.todoPages = [...store.pages, { id: pageId, name: pageName }];
+    root.todoRevision++;
+    saveTodoFile();
+    root.addTodoWithText(root.pendingSelectedText, pageId);
+    ToastService.showInfo("New ToDo page created");
+    root.pendingSelectedText = "";
   }
 
   function handleCreateNewNoteFromSelection() {
@@ -1372,267 +860,135 @@ Item {
     }
   }
 
-  // Append text to existing note
-  function appendTextToNoteCard(noteId, text) {
-    for (let i = 0; i < root.noteCards.length; i++) {
-      if (root.noteCards[i].id === noteId) {
-        const currentContent = root.noteCards[i].content || "";
-        const newContent = currentContent ? currentContent + "\n" + text : text;
-
-        root.updateNoteCard(noteId, { content: newContent });
-        ToastService.showInfo(pluginApi?.tr("toast.text-added-to-note") || "Text added to note");
-        return;
-      }
-    }
-    ToastService.showError(pluginApi?.tr("toast.note-not-found") || "Note not found");
-  }
-
-  // ToDo page selector (single instance, uses first screen)
-  // It's a fullscreen overlay so it works regardless of which screen cursor is on
-  // Selection context menu (shared for both note and todo selection)
+  // ── Selector UI instances ─────────────────────────────────────────────────
   property var selectionMenu: null
-  property string activeSelector: ""  // "todo" or "notecard"
 
   Variants {
     model: Quickshell.screens
-
     delegate: SelectionContextMenu {
       required property var modelData
-
       screen: modelData
       pluginApi: root.pluginApi
-
-      Component.onCompleted: {
-        if (!root.selectionMenu) {
-          root.selectionMenu = this;
-        }
-      }
-
+      Component.onCompleted: { if (!root.selectionMenu) root.selectionMenu = this; }
       onItemSelected: action => {
-                        // Route to appropriate handler
-                        if (root.activeSelector === "notecard" && root.noteCardSelector) {
-                          root.noteCardSelector.handleItemSelected(action);
-                        } else if (root.activeSelector === "todo" && root.todoPageSelector) {
-                          root.todoPageSelector.handleItemSelected(action);
-                        }
-                      }
-
-      onCancelled: {
-        root.pendingSelectedText = "";
-        root.pendingNoteCardText = "";
+        if (root.activeSelector === "notecard") root.noteCardSelector?.handleItemSelected(action);
+        else if (root.activeSelector === "todo") root.todoPageSelector?.handleItemSelected(action);
       }
+      onCancelled: { root.pendingSelectedText = ""; root.pendingNoteCardText = ""; }
     }
   }
 
-  // Note card selector (logic only)
   property var noteCardSelector: NoteCardSelector {
     pluginApi: root.pluginApi
     selectionMenu: root.selectionMenu
-
-    onNoteSelected: (noteId, noteTitle) => {
-                      root.handleNoteCardSelected(noteId, noteTitle);
-                    }
-
-    onCreateNewNote: () => {
-                       root.handleCreateNewNoteFromSelection();
-                     }
+    onNoteSelected:    (id, title) => root.handleNoteCardSelected(id, title)
+    onCreateNewNote:   ()          => root.handleCreateNewNoteFromSelection()
   }
 
-  property string pendingNoteCardText: ""
-
-  // Todo page selector (logic only)
   property var todoPageSelector: TodoPageSelector {
     pluginApi: root.pluginApi
     selectionMenu: root.selectionMenu
-
-    onPageSelected: (pageId, pageName) => {
-                      root.handleTodoPageSelected(pageId, pageName);
-                    }
+    onPageSelected: (pageId, pageName) => root.handleTodoPageSelected(pageId, pageName)
   }
 
-  // Clipboard-based note selector (IPC)
-  Process {
-    id: getClipboardForNoteSelectorProcess
-    command: ["wl-paste", "-n"]
-    stdout: StdioCollector {
-      id: noteClipboardStdout
-    }
-    onExited: (exitCode, exitStatus) => {
-                if (exitCode === 0) {
-                  const clipboardText = noteClipboardStdout.text.trim();
-                  if (clipboardText && clipboardText.length > 0) {
-                    Quickshell.execDetached(["wl-copy", "--", clipboardText]);
-                    root.showNoteCardSelector(clipboardText);
-                  } else {
-                    ToastService.showError(pluginApi?.tr("toast.no-text-selected") || "No text selected");
-                  }
-                } else {
-                  ToastService.showError(pluginApi?.tr("toast.failed-to-get-selection") || "Failed to get selection");
-                }
-              }
-  }
+  // ══════════════════════════════════════════════════════════════════════════
+  // AUTO-PASTE
+  // ══════════════════════════════════════════════════════════════════════════
 
-  function getClipboardAndShowNoteSelector() {
-    getClipboardForNoteSelectorProcess.running = true;
-  }
-
-  Process {
-    id: getSelectionForNoteSelectorProcess
-    command: ["wl-paste", "-p", "-n"]
-    stdout: StdioCollector {
-      id: noteSelectionStdout
-    }
-    onExited: (exitCode, exitStatus) => {
-                if (exitCode === 0) {
-                  const selectedText = noteSelectionStdout.text.trim();
-                  if (selectedText && selectedText.length > 0) {
-                    Quickshell.execDetached(["wl-copy", "--", selectedText]);
-                    root.showNoteCardSelector(selectedText);
-                  } else {
-                    ToastService.showError(pluginApi?.tr("toast.no-text-selected") || "No text selected");
-                  }
-                } else {
-                  ToastService.showError(pluginApi?.tr("toast.failed-to-get-selection") || "Failed to get selection");
-                }
-              }
-  }
-  // Check if wtype is available
   Process {
     id: wtypeCheckProc
     command: ["which", "wtype"]
     running: true
     stdout: StdioCollector {}
     stderr: StdioCollector {}
-    onExited: exitCode => {
-      root.wtypeAvailable = (exitCode === 0);
-    }
+    onExited: exitCode => { root.wtypeAvailable = (exitCode === 0); }
   }
 
-  // Timer for auto-paste delay
   Timer {
     id: autoPasteTimer
     interval: pluginApi?.pluginSettings?.autoPasteDelay ?? 300
     repeat: false
     onTriggered: {
-      if (root.wtypeAvailable) {
-        autoPasteProc.running = true;
-      } else {
-        Logger.w("ClipBoard+", "Auto-paste failed: wtype not found. Install with: sudo pacman -S wtype");
-      }
+      if (root.wtypeAvailable) autoPasteProc.running = true;
+      else Logger.w("ClipBoard+", "Auto-paste failed: wtype not found. Install with: sudo pacman -S wtype");
     }
   }
 
-  // Process to trigger auto-paste via wtype Ctrl+V
   Process {
     id: autoPasteProc
     command: ["wtype", "-M", "ctrl", "-M", "shift", "v"]
-    running: false
     onExited: exitCode => {
-      if (exitCode !== 0) {
-        Logger.w("ClipBoard+", "wtype auto-paste exited with code: " + exitCode);
-      }
+      if (exitCode !== 0) Logger.w("ClipBoard+", "wtype auto-paste exited with code: " + exitCode);
     }
   }
 
-  // Public function called from Panel.qml
-  function triggerAutoPaste() {
-    autoPasteTimer.restart();
+  function triggerAutoPaste() { autoPasteTimer.restart(); }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // TYPE DETECTION
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function getItemType(item) {
+    if (!item) return "Text";
+    if (item.isImage) return "Image";
+
+    const preview = item.preview || "";
+    const trimmed = preview.trim();
+
+    // Color
+    if (/^#[A-Fa-f0-9]{6}([A-Fa-f0-9]{2})?$/.test(trimmed)) return "Color";
+    if (/^#[A-Fa-f0-9]{3}$/.test(trimmed))                   return "Color";
+    if (/^[A-Fa-f0-9]{6}$/.test(trimmed))                    return "Color";
+    if (/^rgba?\s*\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[\d.]+\s*)?\)$/i.test(trimmed)) return "Color";
+
+    // Link
+    if (/^https?:\/\//.test(trimmed)) return "Link";
+
+    // Code — must come before File so `// comment` doesn't match `^/`
+    if (/^(\/\/|\/\*|#!|\*|<!--)/.test(trimmed))                                                return "Code";
+    if (/\b(function|import|export|const|let|var|class|def|return|if|else|for|while|async|await)\b/.test(preview)) return "Code";
+    if (/^[\{\[\(]/.test(trimmed))                                                              return "Code";
+
+    // Emoji
+    if (trimmed.length <= 4 && trimmed.length > 0 && trimmed.charCodeAt(0) > 255) return "Emoji";
+
+    // File path
+    if (/^file:\/\//.test(trimmed)) return "File";
+    if (/^~\//.test(trimmed))       return "File";
+    if ((/^\/[^\s/]/.test(trimmed) && !trimmed.includes(" ")) ||
+        (/^\/[^\s]+\//.test(trimmed) && (trimmed.match(/\//g) || []).length >= 2)) return "File";
+
+    return "Text";
   }
 
-  // Initialize pinned.json and notecards directory if they don't exist
+  // ══════════════════════════════════════════════════════════════════════════
+  // LIFECYCLE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function refreshOnPanelOpen() { root.list(); }
+
   Component.onCompleted: {
-    // console.log("ClipBoard+: Component.onCompleted - pluginApi initialized");
-    if (pluginApi) {
-    }
-
-    // Ensure config directories exist
     Quickshell.execDetached(["mkdir", "-p", root.clipboardPlusConfigDir]);
     Quickshell.execDetached(["mkdir", "-p", root.noteCardsDir]);
 
-    // Create empty pinned.json if it doesn't exist
-    const pinnedPath = clipboardPlusConfigDir + "/pinned.json";
-    Quickshell.execDetached(["sh", "-c", `[ -f "${pinnedPath}" ] || echo '{"items":[]}' > "${pinnedPath}"`]);
+    // Create empty pinned.json if missing
+    Quickshell.execDetached(["sh", "-c",
+      `[ -f "${clipboardPlusConfigDir}/pinned.json" ] || echo '{"items":[]}' > "${clipboardPlusConfigDir}/pinned.json"`]);
 
-    // Migrate legacy notecards.json (if present) into per-note files
-    const legacyNotesPath = clipboardPlusConfigDir + "/notecards.json";
-    const migrateScript =
-      "import json, os, re, sys\n" +
-      "legacy = sys.argv[1]\n" +
-      "outdir = sys.argv[2]\n" +
-      "if not os.path.isfile(legacy):\n" +
-      "  sys.exit(0)\n" +
-      "try:\n" +
-      "  with open(legacy, 'r') as f:\n" +
-      "    data = json.load(f)\n" +
-      "except Exception:\n" +
-      "  sys.exit(0)\n" +
-      "if not isinstance(data, list) or len(data) == 0:\n" +
-      "  sys.exit(0)\n" +
-      "os.makedirs(outdir, exist_ok=True)\n" +
-      "for note in data:\n" +
-      "  if not isinstance(note, dict):\n" +
-      "    continue\n" +
-      "  note_id = str(note.get('id', 'untitled'))\n" +
-      "  safe = re.sub(r'[^a-zA-Z0-9-_]', '_', note_id)\n" +
-      "  path = os.path.join(outdir, safe + '.json')\n" +
-      "  with open(path, 'w') as f:\n" +
-      "    json.dump(note, f, indent=2)\n" +
-      "try:\n" +
-      "  os.rename(legacy, legacy + '.bak')\n" +
-      "except Exception:\n" +
-      "  pass\n";
-    Quickshell.execDetached(["python3", "-c", migrateScript, legacyNotesPath, root.noteCardsDir]);
-
-    // Force reload pinned items from file
     pinnedFile.reload();
-
-    // Load todo file after ensuring directories
     todoFile.reload();
-
-    // Load notecards from disk on startup
     loadNoteCards();
-
-    // Load clipboard history
     list();
   }
 
-  // Cleanup all running processes on destruction
   Component.onDestruction: {
-    if (listProc.running)
-      listProc.terminate();
-    if (decodeProc.running)
-      decodeProc.terminate();
-    if (copyPinnedImageProc.running)
-      copyPinnedImageProc.terminate();
-    if (copyPinnedTextProc.running)
-      copyPinnedTextProc.terminate();
-    if (imageDecodeProc.running)
-      imageDecodeProc.terminate();
-    if (getSelectionProcess.running)
-      getSelectionProcess.terminate();
-    if (getSelectionForSelectorProcess.running)
-      getSelectionForSelectorProcess.terminate();
-    if (getSelectionForNoteSelectorProcess.running)
-      getSelectionForNoteSelectorProcess.terminate();
-    if (copyToClipboardProc.running)
-      copyToClipboardProc.terminate();
-    if (deleteItemProc.running)
-      deleteItemProc.terminate();
-    if (wipeProc.running)
-      wipeProc.terminate();
-    if (loadNoteCardsProc.running)
-      loadNoteCardsProc.terminate();
-
+    const procs = [listProc, decodeProc, copyRawTextProc, copyRawImageProc,
+                   imageDecodeProc, fetchTextProc, copyDecodeProc,
+                   deleteItemProc, wipeProc, loadNoteCardsProc,
+                   wtypeCheckProc, autoPasteProc, textDecodeProc];
+    procs.forEach(p => { if (p.running) p.terminate(); });
     autoPasteTimer.stop();
-    if (autoPasteProc.running) autoPasteProc.terminate();
-    if (wtypeCheckProc.running) wtypeCheckProc.terminate();
-
-    // Clear data structures
-    pinnedItems = [];
-    noteCards = [];
-    items = [];
-    firstSeenById = {};
-    imageCache = {};
-    imageCacheOrder = [];
+    pinnedItems = []; noteCards = []; items = [];
+    firstSeenById = {}; imageCache = {}; imageCacheOrder = [];
   }
 }

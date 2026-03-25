@@ -57,7 +57,7 @@ Item {
 
             StyledText {
                 Layout.alignment: Qt.AlignHCenter
-                text: pluginApi?.tr("notecards.empty-state") || "No notes yet"
+                text: "No notes yet"
                 font.pixelSize: Theme.fontSizeLarge
                 font.bold: true
                 color: Theme.surfaceVariantText
@@ -65,7 +65,7 @@ Item {
 
             StyledText {
                 Layout.alignment: Qt.AlignHCenter
-                text: pluginApi?.tr("notecards.empty-hint") || "Click the button below to create your first note"
+                text: "Click the button below to create your first note"
                 font.pixelSize: Theme.fontSizeMedium
                 color: Theme.surfaceVariantText
                 opacity: 0.7
@@ -74,7 +74,7 @@ Item {
             DankButton {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: 16
-                text: pluginApi?.tr("notecards.create-note") || "Create Note"
+                text: "Create Note"
                 iconName: "add"
 
                 onClicked: {
@@ -121,7 +121,7 @@ Item {
                 width: 28
                 height: 28
                 iconName: "add"
-                tooltipText: pluginApi?.tr("notecards.create-note") || "Create Note"
+                tooltipText: "Create Note"
                 backgroundColor: Theme.primary
                 iconColor: Theme.onPrimary
 
@@ -131,7 +131,7 @@ Item {
                         const max = root.pluginApi.mainInstance.maxNoteCards || 20;
 
                         if (count >= max) {
-                            ToastService.showWarning((pluginApi?.tr("toast.max-notes") || "Maximum {max} notes reached").replace("{max}", max));
+                            ToastService.showWarning(("Maximum {max} notes reached").replace("{max}", max));
                         } else {
                             root.pluginApi.mainInstance.createNoteCard("");
                         }

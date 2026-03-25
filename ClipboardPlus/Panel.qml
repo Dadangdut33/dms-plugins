@@ -409,7 +409,7 @@ Item {
             anchors.margins: Theme.spacingM
             z: 10
             iconName: "close"
-            tooltipText: pluginApi?.tr("panel.close") || "Close"
+            tooltipText: "Close"
             backgroundColor: Theme.surfaceContainer
             iconColor: Theme.surfaceText
             onClicked: {
@@ -459,7 +459,7 @@ Item {
                     spacing: Theme.spacingM
 
                     StyledText {
-                        text: pluginApi?.tr("panel.title") || "Clipboard History"
+                        text: "Clipboard History"
                         font.bold: true
                         font.pixelSize: Theme.fontSizeLarge
                         Layout.alignment: Qt.AlignVCenter
@@ -470,7 +470,7 @@ Item {
 
                     DankActionButton {
                         iconName: "settings"
-                        tooltipText: pluginApi?.tr("panel.settings") || "Settings"
+                        tooltipText: "Settings"
                         Layout.alignment: Qt.AlignVCenter
                         backgroundColor: Theme.surfaceContainer
                         iconColor: Theme.surfaceText
@@ -550,7 +550,7 @@ Item {
                             anchors.left: parent.left
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: Theme.spacingS
-                            text: pluginApi?.tr("panel.search-placeholder") || "Search..."
+                            text: "Search..."
                             color: Theme.surfaceVariantText
                             visible: searchField.text.length === 0
                             font.pixelSize: Theme.fontSizeSmall
@@ -618,7 +618,7 @@ Item {
                                 anchors.centerIn: parent
                                 focus: true
                                 iconName: "apps"
-                                tooltipText: pluginApi?.tr("panel.filter-all") || "All"
+                                tooltipText: "All"
                                 backgroundColor: parent.isActive ? Theme.primary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = ""
@@ -707,7 +707,7 @@ Item {
                                 id: btnText
                                 anchors.centerIn: parent
                                 iconName: "format_align_left"
-                                tooltipText: pluginApi?.tr("panel.filter-text") || "Text"
+                                tooltipText: "Text"
                                 backgroundColor: parent.isActive ? Theme.primary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Text"
@@ -792,7 +792,7 @@ Item {
                                 id: btnImage
                                 anchors.centerIn: parent
                                 iconName: "image"
-                                tooltipText: pluginApi?.tr("panel.filter-images") || "Images"
+                                tooltipText: "Images"
                                 backgroundColor: parent.isActive ? Theme.secondary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Image"
@@ -877,7 +877,7 @@ Item {
                                 id: btnColorFilter
                                 anchors.centerIn: parent
                                 iconName: "palette"
-                                tooltipText: pluginApi?.tr("panel.filter-colors") || "Colors"
+                                tooltipText: "Colors"
                                 backgroundColor: parent.isActive ? Theme.secondary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Color"
@@ -962,7 +962,7 @@ Item {
                                 id: btnLink
                                 anchors.centerIn: parent
                                 iconName: "link"
-                                tooltipText: pluginApi?.tr("panel.filter-links") || "Links"
+                                tooltipText: "Links"
                                 backgroundColor: parent.isActive ? Theme.primary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Link"
@@ -1047,7 +1047,7 @@ Item {
                                 id: btnCode
                                 anchors.centerIn: parent
                                 iconName: "code"
-                                tooltipText: pluginApi?.tr("panel.filter-code") || "Code"
+                                tooltipText: "Code"
                                 backgroundColor: parent.isActive ? Theme.secondary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Code"
@@ -1132,7 +1132,7 @@ Item {
                                 id: btnEmoji
                                 anchors.centerIn: parent
                                 iconName: "sentiment_satisfied"
-                                tooltipText: pluginApi?.tr("panel.filter-emoji") || "Emoji"
+                                tooltipText: "Emoji"
                                 backgroundColor: parent.isActive ? Theme.primary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "Emoji"
@@ -1217,7 +1217,7 @@ Item {
                                 id: btnFile
                                 anchors.centerIn: parent
                                 iconName: "description"
-                                tooltipText: pluginApi?.tr("panel.filter-files") || "Files"
+                                tooltipText: "Files"
                                 backgroundColor: parent.isActive ? Theme.secondary : Theme.surfaceContainer
                                 iconColor: parent.isActive ? Theme.primaryText : Theme.surfaceText
                                 onClicked: root.filterType = "File"
@@ -1283,7 +1283,7 @@ Item {
 
                     DankButton {
                         focus: true
-                        text: pluginApi?.tr("panel.clear-all") || "Clear All"
+                        text: "Clear All"
                         iconName: "delete"
                         Layout.alignment: Qt.AlignVCenter
                         Layout.topMargin: -2 * 1
@@ -1451,14 +1451,14 @@ Item {
                         onPinClicked: {
                             if (isPinned) {
                                 root.pluginApi?.mainInstance?.unpinItem(clipboardId);
-                                ToastService.showInfo(pluginApi?.tr("toast.item-unpinned") || "Item unpinned");
+                                ToastService.showInfo("Item unpinned");
                             } else {
                                 const pinnedItems = root.pluginApi?.mainInstance?.pinnedItems || [];
                                 if (pinnedItems.length >= 100) {
-                                    ToastService.showWarning((pluginApi?.tr("toast.max-pinned-items") || "Maximum {max} pinned items reached").replace("{max}", "100"));
+                                    ToastService.showWarning(("Maximum {max} pinned items reached").replace("{max}", "100"));
                                 } else {
                                     root.pluginApi?.mainInstance?.pinItem(clipboardId);
-                                    ToastService.showInfo(pluginApi?.tr("toast.item-pinned") || "Item pinned");
+                                    ToastService.showInfo("Item pinned");
                                 }
                             }
                         }
@@ -1474,8 +1474,8 @@ Item {
                         anchors.centerIn: parent
                         visible: listView.count === 0
                         text: root.filterType || root.searchText
-                            ? (pluginApi?.tr("panel.no-matches") || "No matching items")
-                            : (pluginApi?.tr("panel.empty") || "Clipboard is empty")
+                            ? ("No matching items")
+                            : ("Clipboard is empty")
                         color: Theme.surfaceVariantText
                     }
                 } // End ListView
@@ -1518,7 +1518,7 @@ Item {
                             spacing: Theme.spacingM
 
                             StyledText {
-                                text: pluginApi?.tr("panel.pinned-title") || "Pinned Items"
+                                text: "Pinned Items"
                                 font.bold: true
                                 font.pixelSize: Theme.fontSizeLarge
                                 Layout.alignment: Qt.AlignVCenter
@@ -1674,7 +1674,7 @@ Item {
                             StyledText {
                                 anchors.centerIn: parent
                                 visible: pinnedListView.count === 0
-                                text: pluginApi?.tr("panel.no-pinned") || "No pinned items"
+                                text: "No pinned items"
                                 color: Theme.surfaceVariantText
                             }
                         } // End pinnedListView
@@ -1704,7 +1704,7 @@ Item {
                             spacing: Theme.spacingS
 
                             StyledText {
-                                text: pluginApi?.tr("panel.todo-title") || "ToDo"
+                                text: "ToDo"
                                 font.bold: true
                                 font.pixelSize: Theme.fontSizeMedium
                                 Layout.alignment: Qt.AlignVCenter
@@ -1869,7 +1869,7 @@ Item {
                                 StyledText {
                                     anchors.centerIn: parent
                                     visible: todoListView.count === 0
-                                    text: pluginApi?.tr("panel.no-todos") || "No todos yet"
+                                    text: "No todos yet"
                                     color: Theme.surfaceVariantText
                                 }
                             } // End todoListView

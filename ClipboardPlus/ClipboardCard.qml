@@ -194,7 +194,7 @@ Rectangle {
                     iconName: "playlist_add_check"
                     iconColor: root.accentFgColor
                     backgroundColor: "transparent"
-                    tooltipText: pluginApi?.tr("card.add-todo") || "Add to ToDo"
+                    tooltipText: "Add to ToDo"
                     onClicked: {
                         if (root.preview) {
                             root.pluginApi?.mainInstance?.addTodoWithText(root.preview.substring(0, 200), 0);
@@ -207,7 +207,7 @@ Rectangle {
                     iconName: "push_pin"
                     iconColor: root.accentFgColor
                     backgroundColor: "transparent"
-                    tooltipText: pluginApi?.tr("card.pin") || "Pin"
+                    tooltipText: "Pin"
                     onClicked: root.pinClicked()
                 }
 
@@ -215,7 +215,7 @@ Rectangle {
                     iconName: "delete"
                     iconColor: root.accentFgColor
                     backgroundColor: "transparent"
-                    tooltipText: pluginApi?.tr("card.delete") || "Delete"
+                    tooltipText: "Delete"
                     onClicked: root.deleteClicked()
                 }
             }
