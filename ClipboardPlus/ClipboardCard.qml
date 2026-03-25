@@ -258,6 +258,33 @@ Rectangle {
                 border.color: root.accentFgColor
             }
 
+            Item {
+                id: colorCodePill
+                visible: root.isColor && root.colorValue.length > 0
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 6
+                height: 24
+                width: colorCodeText.implicitWidth + 16
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: height / 2
+                    color: Theme.withAlpha("#000000", 0.65)
+                    border.width: 1
+                    border.color: Theme.withAlpha(Theme.outline, 0.6)
+                }
+
+                StyledText {
+                    id: colorCodeText
+                    anchors.centerIn: parent
+                    text: root.colorValue.toUpperCase()
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: "#ffffff"
+                }
+            }
+
             StyledText {
                 id: previewText
                 visible: !root.isColor && !root.isImage

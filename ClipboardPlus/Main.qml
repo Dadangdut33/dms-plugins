@@ -253,7 +253,9 @@ Item {
     const trimmed = preview.trim();
 
     // Color detection
-    if (/^#[A-Fa-f0-9]{6}$/.test(trimmed) || /^#[A-Fa-f0-9]{3}$/.test(trimmed))
+    if (/^#[A-Fa-f0-9]{6}([A-Fa-f0-9]{2})?$/.test(trimmed))
+      return "Color";
+    if (/^#[A-Fa-f0-9]{3}$/.test(trimmed))
       return "Color";
     if (/^[A-Fa-f0-9]{6}$/.test(trimmed))
       return "Color";
@@ -264,16 +266,26 @@ Item {
     if (/^https?:\/\//.test(trimmed))
       return "Link";
 
-    // Code detection
-    if (preview.includes("function") || preview.includes("import ") || preview.includes("const ") || preview.includes("let ") || preview.includes("var ") || preview.includes("class ") || preview.includes("def ") || preview.includes("return ") || /^[\{\[\(<]/.test(trimmed))
+    // Code detection — before file, so `// comment` and `{ }` don't get misclassified
+    if (/^(\/\/|\/\*|#!|\*|<!--)/.test(trimmed))
+      return "Code";
+    if (/\b(function|import|export|const|let|var|class|def|return|if|else|for|while|async|await)\b/.test(preview))
+      return "Code";
+    if (/^[\{\[\(]/.test(trimmed))
       return "Code";
 
     // Emoji detection
     if (trimmed.length <= 4 && trimmed.length > 0 && trimmed.charCodeAt(0) > 255)
       return "Emoji";
 
-    // File path detection
-    if (/^(\/|~|file:\/\/)/.test(trimmed))
+    // File path detection — must look like an actual path, not a comment or sentence
+    // Reject if it contains spaces before the first slash's path segment,
+    // or looks like it has natural language / operators mixed in
+    if (/^file:\/\//.test(trimmed))
+      return "File";
+    if (/^~\//.test(trimmed))
+      return "File";
+    if (/^\/[^\s/]/.test(trimmed) && !trimmed.includes(" ") || /^\/[^\s]+\//.test(trimmed) && (trimmed.match(/\//g) || []).length >= 2)
       return "File";
 
     return "Text";
