@@ -811,78 +811,73 @@ PluginComponent {
                                                 anchors.right: parent.right
                                                 anchors.verticalCenter: parent.verticalCenter
 
-                                                Rectangle {
+                                                DankActionButton {
                                                     id: streamScrollBtn
                                                     width: 28 * streamItem.controlsProgress
                                                     height: 28
+                                                    buttonSize: 28
                                                     radius: 14
-                                                    color: streamScrollArea.containsMouse ? Theme.surfaceContainerHighest : "transparent"
+                                                    iconName: "drag_indicator"
+                                                    iconSize: 16
+                                                    iconColor: Theme.surfaceVariantText
+                                                    backgroundColor: "transparent"
                                                     opacity: streamItem.controlsProgress
                                                     enabled: streamItem.controlsProgress > 0.1
                                                     visible: streamItem.controlsProgress > 0
+                                                    tooltipText: "Drag or scroll to adjust"
+                                                    tooltipSide: "top"
 
-                                                    DankIcon {
-                                                        anchors.centerIn: parent
-                                                        name: "drag_indicator"
-                                                        size: 16
-                                                        color: streamScrollArea.pressed ? Theme.primary : Theme.surfaceVariantText
+                                                    property real dragAccum: 0
+                                                    property real dragSensitivity: 4
+                                                    property real lastDragTranslation: 0
+
+                                                    WheelHandler {
+                                                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                                        onWheel: event => {
+                                                            root.adjustStreamVolume(modelData, event.angleDelta.y > 0 ? root.volumeScrollStep : -root.volumeScrollStep);
+                                                            event.accepted = true;
+                                                        }
                                                     }
 
-                                                    MouseArea {
-                                                        id: streamScrollArea
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        cursorShape: streamScrollArea.pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-                                                        property real dragStartY: 0
-                                                        property real dragAccum: 0
-                                                        property real dragSensitivity: 4  // px of drag per one volumeScrollStep
-
-                                                        onPressed: function (mouse) {
-                                                            dragStartY = mouse.y;
-                                                            dragAccum = 0;
-                                                        }
-                                                        onPositionChanged: function (mouse) {
-                                                            if (!pressed)
-                                                                return;
-                                                            var delta = dragStartY - mouse.y;  // positive = dragged up = louder
-                                                            dragAccum += delta;
-                                                            dragStartY = mouse.y;
-                                                            var steps = Math.trunc(dragAccum / dragSensitivity);
-                                                            if (steps !== 0) {
-                                                                root.adjustStreamVolume(modelData, steps * root.volumeScrollStep);
-                                                                dragAccum -= steps * dragSensitivity;
+                                                    DragHandler {
+                                                        target: null
+                                                        yAxis.enabled: true
+                                                        xAxis.enabled: false
+                                                        onActiveChanged: {
+                                                            if (active) {
+                                                                streamScrollBtn.dragAccum = 0;
+                                                                streamScrollBtn.lastDragTranslation = translation.y;
                                                             }
                                                         }
-                                                        onWheel: function (wheel) {
-                                                            root.adjustStreamVolume(modelData, wheel.angleDelta.y > 0 ? root.volumeScrollStep : -root.volumeScrollStep);
+                                                        onTranslationChanged: {
+                                                            var delta = streamScrollBtn.lastDragTranslation - translation.y;
+                                                            streamScrollBtn.lastDragTranslation = translation.y;
+                                                            streamScrollBtn.dragAccum += delta;
+                                                            var steps = Math.trunc(streamScrollBtn.dragAccum / streamScrollBtn.dragSensitivity);
+                                                            if (steps !== 0) {
+                                                                root.adjustStreamVolume(modelData, steps * root.volumeScrollStep);
+                                                                streamScrollBtn.dragAccum -= steps * streamScrollBtn.dragSensitivity;
+                                                            }
                                                         }
                                                     }
                                                 }
 
-                                                Rectangle {
+                                                DankActionButton {
                                                     id: streamResetBtn
                                                     width: 28 * streamItem.controlsProgress
                                                     height: 28
+                                                    buttonSize: 28
                                                     radius: 14
-                                                    color: streamResetArea.containsMouse ? Theme.surfaceContainerHighest : "transparent"
+                                                    iconName: "restart_alt"
+                                                    iconSize: 16
+                                                    iconColor: Theme.surfaceVariantText
+                                                    backgroundColor: "transparent"
                                                     opacity: streamItem.controlsProgress
                                                     enabled: streamItem.controlsProgress > 0.1
                                                     visible: streamItem.controlsProgress > 0
-
-                                                    DankIcon {
-                                                        anchors.centerIn: parent
-                                                        name: "restart_alt"
-                                                        size: 16
-                                                        color: Theme.surfaceVariantText
-                                                    }
-
-                                                    MouseArea {
-                                                        id: streamResetArea
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        cursorShape: Qt.PointingHandCursor
-                                                        onClicked: root.resetAppStreamVolumeToBase(modelData)
-                                                    }
+                                                    tooltipText: "Reset volume"
+                                                    tooltipSide: "top"
+                                                    onClicked: root.resetAppStreamVolumeToBase(modelData)
                                                 }
 
                                                 Rectangle {
@@ -986,7 +981,7 @@ PluginComponent {
                                                         width: streamSlider.visualPosition * parent.width
                                                         height: parent.height
                                                         radius: 2
-                                                        color: Theme.primary
+                                                        color: modelData.audio?.muted ? Theme.surfaceVariantText : Theme.primary
                                                     }
                                                 }
 
@@ -996,7 +991,7 @@ PluginComponent {
                                                     implicitWidth: 16
                                                     implicitHeight: 16
                                                     radius: 8
-                                                    color: Theme.primary
+                                                    color: modelData.audio?.muted ? Theme.surfaceVariantText : Theme.primary
                                                     border.color: Theme.surface
                                                     border.width: 2
                                                 }
