@@ -21,6 +21,9 @@ PluginComponent {
     property int volumeScrollStep: pluginData.volumeScrollStep || 2
     property int micVolumeScrollStep: pluginData.micVolumeScrollStep || 2
     property int maxVolumePercent: pluginData.maxVolumePercent || 100
+    property bool useCustomTabRadius: pluginData.useCustomTabRadius !== undefined ? pluginData.useCustomTabRadius : false
+    property int tabRadius: useCustomTabRadius ? (pluginData.tabRadius || Theme.cornerRadius) : Theme.cornerRadius
+    property int tabInnerRadius: Math.max(0, tabRadius - 3)
 
     // ── PipeWire references ──
     readonly property PwNode sink: Pipewire.defaultAudioSink
@@ -39,85 +42,137 @@ PluginComponent {
 
     // ── Helper functions ──
     function speakerIconName() {
-        if (sinkMuted || sinkVolume === 0) return "volume_off"
-        if (sinkVolume < 33) return "volume_mute"
-        if (sinkVolume < 66) return "volume_down"
-        return "volume_up"
+        if (sinkMuted || sinkVolume === 0)
+            return "volume_off";
+        if (sinkVolume < 33)
+            return "volume_mute";
+        if (sinkVolume < 66)
+            return "volume_down";
+        return "volume_up";
+    }
+
+    function speakerIconNameOffOrNo() {
+        if (sinkMuted || sinkVolume === 0)
+            return "volume_off";
+        return "volume_up";
     }
 
     function micIconName() {
-        if (sourceMuted) return "mic_off"
-        return "mic"
+        if (sourceMuted)
+            return "mic_off";
+        return "mic";
     }
 
     function adjustSinkVolume(delta) {
-        if (!sink?.audio) return
-        if (sink.audio.muted) sink.audio.muted = false
-        const maxSetting = root.maxVolumePercent || 100
-        const maxFromService = (typeof AudioService !== "undefined" && AudioService.getMaxVolumePercent) ? AudioService.getMaxVolumePercent(sink) : maxSetting
-        const maxVol = Math.min(maxSetting, maxFromService)
-        const newVol = Math.max(0, Math.min(maxVol, sinkVolume + delta))
-        sink.audio.volume = newVol / 100
+        if (!sink?.audio)
+            return;
+        if (sink.audio.muted)
+            sink.audio.muted = false;
+        const maxSetting = root.maxVolumePercent || 100;
+        const maxFromService = (typeof AudioService !== "undefined" && AudioService.getMaxVolumePercent) ? AudioService.getMaxVolumePercent(sink) : maxSetting;
+        const maxVol = Math.min(maxSetting, maxFromService);
+        const newVol = Math.max(0, Math.min(maxVol, sinkVolume + delta));
+        sink.audio.volume = newVol / 100;
     }
 
     function adjustSourceVolume(delta) {
-        if (!source?.audio) return
-        if (source.audio.muted) source.audio.muted = false
-        const newVol = Math.max(0, Math.min(100, sourceVolume + delta))
-        source.audio.volume = newVol / 100
+        if (!source?.audio)
+            return;
+        if (source.audio.muted)
+            source.audio.muted = false;
+        const newVol = Math.max(0, Math.min(100, sourceVolume + delta));
+        source.audio.volume = newVol / 100;
     }
 
     function displayName(node) {
-        if (!node) return ""
+        if (!node)
+            return "";
         if (typeof AudioService !== "undefined" && AudioService.displayName) {
-            return AudioService.displayName(node)
+            return AudioService.displayName(node);
         }
-        if (node.description && node.description !== node.name) return node.description
-        if (node.properties && node.properties["node.description"]) return node.properties["node.description"]
-        if (node.nickname && node.nickname !== node.name) return node.nickname
-        return node.name || ""
+        if (node.description && node.description !== node.name)
+            return node.description;
+        if (node.properties && node.properties["node.description"])
+            return node.properties["node.description"];
+        if (node.nickname && node.nickname !== node.name)
+            return node.nickname;
+        return node.name || "";
     }
 
     function getAvailableSinks() {
-        return Pipewire.nodes.values.filter(node => node.audio && node.isSink && !node.isStream)
+        return Pipewire.nodes.values.filter(node => node.audio && node.isSink && !node.isStream);
     }
 
     function getAvailableSources() {
-        return Pipewire.nodes.values.filter(node => node.audio && !node.isSink && !node.isStream)
+        return Pipewire.nodes.values.filter(node => node.audio && !node.isSink && !node.isStream);
     }
 
     function getStreamNodes() {
-        return Pipewire.nodes.values.filter(node => node.audio && node.isStream && node.isSink)
+        return Pipewire.nodes.values.filter(node => node.audio && node.isStream && node.isSink);
     }
 
     function getStreamAppIconName(node) {
-        if (!node) return ""
-        const props = node.properties || {}
+        if (!node)
+            return "";
+        const props = node.properties || {};
         // PipeWire exposes the application's icon name
-        return props["application.icon-name"] || props["application.icon_name"] || ""
+        return props["application.icon-name"] || props["application.icon_name"] || "";
     }
 
     function getStreamFallbackIcon(node) {
-        if (!node) return "play_arrow"
-        const props = node.properties || {}
-        const appName = (props["application.name"] || node.name || "").toLowerCase()
-        if (appName.includes("firefox")) return "public"
-        if (appName.includes("chrome")) return "public"
-        if (appName.includes("vivaldi")) return "public"
-        if (appName.includes("spotify")) return "music_note"
-        if (appName.includes("mpv")) return "movie"
-        if (appName.includes("vlc")) return "movie"
-        if (appName.includes("discord")) return "chat"
-        if (appName.includes("steam")) return "sports_esports"
-        if (appName.includes("obs")) return "videocam"
-        if (appName.includes("telegram")) return "chat"
-        return "play_arrow"
+        if (!node)
+            return "graphic_eq";
+        const props = node.properties || {};
+        const appName = (props["application.name"] || node.name || "").toLowerCase();
+        if (appName.includes("firefox"))
+            return "public";
+        if (appName.includes("chrome"))
+            return "public";
+        if (appName.includes("vivaldi"))
+            return "public";
+        if (appName.includes("spotify"))
+            return "music_note";
+        if (appName.includes("mpv"))
+            return "movie";
+        if (appName.includes("vlc"))
+            return "movie";
+        if (appName.includes("discord"))
+            return "chat";
+        if (appName.includes("steam"))
+            return "sports_esports";
+        if (appName.includes("obs"))
+            return "videocam";
+        if (appName.includes("telegram"))
+            return "chat";
+        return "graphic_eq";
     }
 
     function getStreamDisplayName(node) {
-        if (!node) return ""
-        const props = node.properties || {}
-        return props["application.name"] || root.displayName(node)
+        if (!node)
+            return "";
+        const props = node.properties || {};
+        return props["application.name"] || root.displayName(node);
+    }
+
+    function adjustStreamVolume(node, delta) {
+        if (!node?.audio)
+            return;
+        if (node.audio.muted)
+            node.audio.muted = false;
+        const maxVol = root.maxVolumePercent || 100;
+        const currentVol = Math.round(node.audio.volume * 100);
+        const newVol = Math.max(0, Math.min(maxVol, currentVol + delta));
+        node.audio.volume = newVol / 100;
+    }
+
+    function resetAppStreamVolumeToBase(node) {
+        // for resetting per app volume, we want it to reset to default (100%)
+        if (!node?.audio)
+            return;
+        if (node.audio.muted)
+            node.audio.muted = false;
+        const maxVol = 100;
+        node.audio.volume = maxVol / 100;
     }
 
     // ── Mic Volume Popup State ──
@@ -128,19 +183,22 @@ PluginComponent {
         id: micPopoutTimer
         interval: 1500
         onTriggered: {
-            if (typeof root.closePopout === "function") root.closePopout()
+            if (typeof root.closePopout === "function")
+                root.closePopout();
         }
     }
 
     function triggerMicPopout() {
         // If the main menu is already open and we are not in mic popup mode, do nothing
-        if (root.isPopoutActuallyOpen && !root.micPopupMode) return;
+        if (root.isPopoutActuallyOpen && !root.micPopupMode)
+            return;
 
         root.micPopupMode = true;
         micPopoutTimer.restart();
 
         if (!root.isPopoutActuallyOpen) {
-            if (typeof root.triggerPopout === "function") root.triggerPopout();
+            if (typeof root.triggerPopout === "function")
+                root.triggerPopout();
         }
     }
 
@@ -193,15 +251,15 @@ PluginComponent {
                 anchors.fill: parent
                 acceptedButtons: Qt.NoButton
 
-                onWheel: function(wheel) {
-                    const midX = parent.width / 2
-                    const onMicSide = root.showMic && (!root.showSpeaker || wheel.x > midX)
+                onWheel: function (wheel) {
+                    const midX = parent.width / 2;
+                    const onMicSide = root.showMic && (!root.showSpeaker || wheel.x > midX);
 
                     if (onMicSide) {
-                        root.adjustSourceVolume(wheel.angleDelta.y > 0 ? root.micVolumeScrollStep : -root.micVolumeScrollStep)
-                        root.triggerMicPopout()
+                        root.adjustSourceVolume(wheel.angleDelta.y > 0 ? root.micVolumeScrollStep : -root.micVolumeScrollStep);
+                        root.triggerMicPopout();
                     } else if (root.showSpeaker) {
-                        root.adjustSinkVolume(wheel.angleDelta.y > 0 ? root.volumeScrollStep : -root.volumeScrollStep)
+                        root.adjustSinkVolume(wheel.angleDelta.y > 0 ? root.volumeScrollStep : -root.volumeScrollStep);
                     }
                 }
             }
@@ -257,15 +315,15 @@ PluginComponent {
                 anchors.fill: parent
                 acceptedButtons: Qt.NoButton
 
-                onWheel: function(wheel) {
-                    const midY = parent.height / 2
-                    const onMicSide = root.showMic && (!root.showSpeaker || wheel.y > midY)
+                onWheel: function (wheel) {
+                    const midY = parent.height / 2;
+                    const onMicSide = root.showMic && (!root.showSpeaker || wheel.y > midY);
 
                     if (onMicSide) {
-                        root.adjustSourceVolume(wheel.angleDelta.y > 0 ? root.micVolumeScrollStep : -root.micVolumeScrollStep)
-                        root.triggerMicPopout()
+                        root.adjustSourceVolume(wheel.angleDelta.y > 0 ? root.micVolumeScrollStep : -root.micVolumeScrollStep);
+                        root.triggerMicPopout();
                     } else if (root.showSpeaker) {
-                        root.adjustSinkVolume(wheel.angleDelta.y > 0 ? root.volumeScrollStep : -root.volumeScrollStep)
+                        root.adjustSinkVolume(wheel.angleDelta.y > 0 ? root.volumeScrollStep : -root.volumeScrollStep);
                     }
                 }
             }
@@ -279,11 +337,11 @@ PluginComponent {
 
             headerText: root.micPopupMode ? "" : "Audio"
             showCloseButton: !root.micPopupMode
-            
+
             Component.onCompleted: root.isPopoutActuallyOpen = true
             Component.onDestruction: {
-                root.isPopoutActuallyOpen = false
-                root.micPopupMode = false
+                root.isPopoutActuallyOpen = false;
+                root.micPopupMode = false;
             }
 
             property int activeTab: 0
@@ -334,7 +392,7 @@ PluginComponent {
                 StyledRect {
                     width: parent.width
                     height: 40
-                    radius: 20
+                    radius: root.tabRadius
                     color: Theme.surfaceContainerHigh
 
                     Row {
@@ -344,7 +402,7 @@ PluginComponent {
                         Rectangle {
                             width: parent.width / 2
                             height: parent.height
-                            radius: 17
+                            radius: root.tabInnerRadius
                             color: popout.activeTab === 0 ? Theme.primary : "transparent"
 
                             StyledText {
@@ -365,7 +423,7 @@ PluginComponent {
                         Rectangle {
                             width: parent.width / 2
                             height: parent.height
-                            radius: 17
+                            radius: root.tabInnerRadius
                             color: popout.activeTab === 1 ? Theme.primary : "transparent"
 
                             StyledText {
@@ -404,12 +462,26 @@ PluginComponent {
                         width: parent.width
                         spacing: Theme.spacingS
 
-                        StyledText {
-                            text: "Output" + (root.sink ? " – " + root.displayName(root.sink) : "")
-                            font.pixelSize: Theme.fontSizeSmall
-                            color: Theme.primary
+                        Row {
                             width: parent.width
-                            elide: Text.ElideRight
+                            spacing: Theme.spacingS
+                            height: 20
+
+                            DankIcon {
+                                name: root.speakerIconNameOffOrNo()
+                                size: 18
+                                color: Theme.primary
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            StyledText {
+                                text: "Output" + (root.sink ? " – " + root.displayName(root.sink) : "")
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.primary
+                                width: parent.width - 18 - Theme.spacingS
+                                elide: Text.ElideRight
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
 
                         Row {
@@ -420,15 +492,13 @@ PluginComponent {
                                 id: outputSlider
                                 width: parent.width - outputVolLabel.width - outputMuteBtn.width - Theme.spacingS * 2
                                 from: 0
-                                to: (typeof AudioService !== "undefined" && AudioService.getMaxVolumePercent)
-                                    ? Math.min(root.maxVolumePercent, AudioService.getMaxVolumePercent(root.sink))
-                                    : root.maxVolumePercent
+                                to: (typeof AudioService !== "undefined" && AudioService.getMaxVolumePercent) ? Math.min(root.maxVolumePercent, AudioService.getMaxVolumePercent(root.sink)) : root.maxVolumePercent
                                 value: root.sinkVolume
                                 anchors.verticalCenter: parent.verticalCenter
 
                                 onMoved: {
                                     if (root.sink?.audio) {
-                                        root.sink.audio.volume = value / 100
+                                        root.sink.audio.volume = value / 100;
                                     }
                                 }
 
@@ -493,7 +563,8 @@ PluginComponent {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (root.sink?.audio) root.sink.audio.muted = !root.sink.audio.muted
+                                        if (root.sink?.audio)
+                                            root.sink.audio.muted = !root.sink.audio.muted;
                                     }
                                 }
                             }
@@ -511,12 +582,26 @@ PluginComponent {
                         width: parent.width
                         spacing: Theme.spacingS
 
-                        StyledText {
-                            text: "Input" + (root.source ? " – " + root.displayName(root.source) : "")
-                            font.pixelSize: Theme.fontSizeSmall
-                            color: Theme.primary
+                        Row {
                             width: parent.width
-                            elide: Text.ElideRight
+                            spacing: Theme.spacingS
+                            height: 20
+
+                            DankIcon {
+                                name: root.micIconName()
+                                size: 18
+                                color: Theme.primary
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            StyledText {
+                                text: "Input" + (root.source ? " – " + root.displayName(root.source) : "")
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.primary
+                                width: parent.width - 18 - Theme.spacingS
+                                elide: Text.ElideRight
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
 
                         Row {
@@ -533,7 +618,7 @@ PluginComponent {
 
                                 onMoved: {
                                     if (root.source?.audio) {
-                                        root.source.audio.volume = value / 100
+                                        root.source.audio.volume = value / 100;
                                     }
                                 }
 
@@ -598,7 +683,8 @@ PluginComponent {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (root.source?.audio) root.source.audio.muted = !root.source.audio.muted
+                                        if (root.source?.audio)
+                                            root.source.audio.muted = !root.source.audio.muted;
                                     }
                                 }
                             }
@@ -654,13 +740,24 @@ PluginComponent {
                                     model: root.getStreamNodes()
 
                                     Column {
+                                        id: streamItem
                                         width: streamsContentCol.width
                                         spacing: Theme.spacingXS
+                                        property bool expanded: false
+                                        property real controlsProgress: expanded ? 1 : 0
+
+                                        Behavior on controlsProgress {
+                                            NumberAnimation {
+                                                duration: 180
+                                                easing.type: Easing.OutCubic
+                                            }
+                                        }
 
                                         // App name row with icon
                                         Row {
                                             spacing: Theme.spacingS
                                             height: 24
+                                            width: parent.width
 
                                             // Try real app icon first, fall back to DankIcon
                                             Item {
@@ -672,10 +769,11 @@ PluginComponent {
                                                     id: appIconImage
                                                     anchors.fill: parent
                                                     source: {
-                                                        const iconName = root.getStreamAppIconName(modelData)
-                                                        if (!iconName) return ""
+                                                        const iconName = root.getStreamAppIconName(modelData);
+                                                        if (!iconName)
+                                                            return "";
                                                         // Try freedesktop icon theme paths
-                                                        return "image://icon/" + iconName
+                                                        return "image://icon/" + iconName;
                                                     }
                                                     sourceSize.width: 20
                                                     sourceSize.height: 20
@@ -698,25 +796,179 @@ PluginComponent {
                                                 font.weight: Font.Medium
                                                 color: Theme.surfaceText
                                                 anchors.verticalCenter: parent.verticalCenter
+                                                width: parent.width - 20 - Theme.spacingS
+                                                elide: Text.ElideRight
                                             }
                                         }
 
                                         // Volume slider row
-                                        Row {
+                                        Item {
                                             width: parent.width
-                                            spacing: Theme.spacingS
+                                            height: Math.max(streamSlider.implicitHeight, 28)
+
+                                            Row {
+                                                id: streamRightControls
+                                                anchors.right: parent.right
+                                                anchors.verticalCenter: parent.verticalCenter
+
+                                                Rectangle {
+                                                    id: streamScrollBtn
+                                                    width: 28 * streamItem.controlsProgress
+                                                    height: 28
+                                                    radius: 14
+                                                    color: streamScrollArea.containsMouse ? Theme.surfaceContainerHighest : "transparent"
+                                                    opacity: streamItem.controlsProgress
+                                                    enabled: streamItem.controlsProgress > 0.1
+                                                    visible: streamItem.controlsProgress > 0
+
+                                                    DankIcon {
+                                                        anchors.centerIn: parent
+                                                        name: "drag_indicator"
+                                                        size: 16
+                                                        color: streamScrollArea.pressed ? Theme.primary : Theme.surfaceVariantText
+                                                    }
+
+                                                    MouseArea {
+                                                        id: streamScrollArea
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: streamScrollArea.pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                                                        property real dragStartY: 0
+                                                        property real dragAccum: 0
+                                                        property real dragSensitivity: 4  // px of drag per one volumeScrollStep
+
+                                                        onPressed: function (mouse) {
+                                                            dragStartY = mouse.y;
+                                                            dragAccum = 0;
+                                                        }
+                                                        onPositionChanged: function (mouse) {
+                                                            if (!pressed)
+                                                                return;
+                                                            var delta = dragStartY - mouse.y;  // positive = dragged up = louder
+                                                            dragAccum += delta;
+                                                            dragStartY = mouse.y;
+                                                            var steps = Math.trunc(dragAccum / dragSensitivity);
+                                                            if (steps !== 0) {
+                                                                root.adjustStreamVolume(modelData, steps * root.volumeScrollStep);
+                                                                dragAccum -= steps * dragSensitivity;
+                                                            }
+                                                        }
+                                                        onWheel: function (wheel) {
+                                                            root.adjustStreamVolume(modelData, wheel.angleDelta.y > 0 ? root.volumeScrollStep : -root.volumeScrollStep);
+                                                        }
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    id: streamResetBtn
+                                                    width: 28 * streamItem.controlsProgress
+                                                    height: 28
+                                                    radius: 14
+                                                    color: streamResetArea.containsMouse ? Theme.surfaceContainerHighest : "transparent"
+                                                    opacity: streamItem.controlsProgress
+                                                    enabled: streamItem.controlsProgress > 0.1
+                                                    visible: streamItem.controlsProgress > 0
+
+                                                    DankIcon {
+                                                        anchors.centerIn: parent
+                                                        name: "restart_alt"
+                                                        size: 16
+                                                        color: Theme.surfaceVariantText
+                                                    }
+
+                                                    MouseArea {
+                                                        id: streamResetArea
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: root.resetAppStreamVolumeToBase(modelData)
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    id: streamExpandBtn
+                                                    width: 28
+                                                    height: 28
+                                                    radius: 14
+                                                    color: streamExpandArea.containsMouse ? Theme.surfaceContainerHighest : "transparent"
+
+                                                    DankIcon {
+                                                        anchors.centerIn: parent
+                                                        name: streamItem.expanded ? "chevron_left" : "chevron_right"
+                                                        size: 18
+                                                        color: Theme.surfaceVariantText
+                                                    }
+
+                                                    MouseArea {
+                                                        id: streamExpandArea
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: streamItem.expanded = !streamItem.expanded
+                                                    }
+                                                }
+
+                                                // tighten gap to left (chevron) side
+                                                Item {
+                                                    width: -4
+                                                    height: 1
+                                                }
+
+                                                StyledText {
+                                                    id: streamVolLabel
+                                                    text: (modelData.audio ? Math.round(modelData.audio.volume * 100) : 0) + "%"
+                                                    font.pixelSize: Theme.fontSizeSmall
+                                                    color: Theme.surfaceText
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    width: 40
+                                                    horizontalAlignment: Text.AlignRight
+                                                }
+
+                                                // widen gap to mute icon
+                                                Item {
+                                                    width: 6
+                                                    height: 1
+                                                }
+
+                                                Rectangle {
+                                                    id: streamMuteBtn
+                                                    width: 28
+                                                    height: 28
+                                                    radius: 14
+                                                    color: streamMuteArea.containsMouse ? Theme.surfaceContainerHighest : "transparent"
+
+                                                    DankIcon {
+                                                        anchors.centerIn: parent
+                                                        name: modelData.audio?.muted ? "volume_off" : "volume_up"
+                                                        size: 18
+                                                        color: modelData.audio?.muted ? Theme.surfaceVariantText : Theme.primary
+                                                    }
+
+                                                    MouseArea {
+                                                        id: streamMuteArea
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            if (modelData.audio)
+                                                                modelData.audio.muted = !modelData.audio.muted;
+                                                        }
+                                                    }
+                                                }
+                                            }
 
                                             Slider {
                                                 id: streamSlider
-                                                width: parent.width - streamVolLabel.width - streamMuteBtn.width - Theme.spacingS * 2
+                                                anchors.left: parent.left
+                                                anchors.right: streamRightControls.left
+                                                anchors.verticalCenter: parent.verticalCenter
                                                 from: 0
                                                 to: root.maxVolumePercent
                                                 value: modelData.audio ? Math.round(modelData.audio.volume * 100) : 0
-                                                anchors.verticalCenter: parent.verticalCenter
 
                                                 onMoved: {
                                                     if (modelData.audio) {
-                                                        modelData.audio.volume = value / 100
+                                                        modelData.audio.volume = value / 100;
                                                     }
                                                 }
 
@@ -748,40 +1000,11 @@ PluginComponent {
                                                     border.color: Theme.surface
                                                     border.width: 2
                                                 }
-                                            }
 
-                                            StyledText {
-                                                id: streamVolLabel
-                                                text: (modelData.audio ? Math.round(modelData.audio.volume * 100) : 0) + "%"
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                color: Theme.surfaceText
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                width: 40
-                                                horizontalAlignment: Text.AlignRight
-                                            }
-
-                                            Rectangle {
-                                                id: streamMuteBtn
-                                                width: 28
-                                                height: 28
-                                                radius: 14
-                                                color: streamMuteArea.containsMouse ? Theme.surfaceContainerHighest : "transparent"
-                                                anchors.verticalCenter: parent.verticalCenter
-
-                                                DankIcon {
-                                                    anchors.centerIn: parent
-                                                    name: modelData.audio?.muted ? "volume_off" : "volume_up"
-                                                    size: 18
-                                                    color: modelData.audio?.muted ? Theme.surfaceVariantText : Theme.primary
-                                                }
-
-                                                MouseArea {
-                                                    id: streamMuteArea
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onClicked: {
-                                                        if (modelData.audio) modelData.audio.muted = !modelData.audio.muted
+                                                Behavior on width {
+                                                    NumberAnimation {
+                                                        duration: 180
+                                                        easing.type: Easing.OutCubic
                                                     }
                                                 }
                                             }
@@ -790,7 +1013,6 @@ PluginComponent {
                                 }
                             }
                         }
-
                     }
 
                     // ── "No applications" message ──
@@ -824,11 +1046,24 @@ PluginComponent {
                         width: parent.width
                         spacing: Theme.spacingXS
 
-                        StyledText {
-                            text: "Output device"
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: Font.Bold
-                            color: Theme.primary
+                        Row {
+                            spacing: Theme.spacingS
+                            height: 20
+
+                            DankIcon {
+                                name: "volume_up"
+                                size: 18
+                                color: Theme.primary
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            StyledText {
+                                text: "Output device"
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Font.Bold
+                                color: Theme.primary
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
 
                         Repeater {
@@ -875,7 +1110,7 @@ PluginComponent {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        Pipewire.preferredDefaultAudioSink = modelData
+                                        Pipewire.preferredDefaultAudioSink = modelData;
                                     }
                                 }
                             }
@@ -893,11 +1128,24 @@ PluginComponent {
                         width: parent.width
                         spacing: Theme.spacingXS
 
-                        StyledText {
-                            text: "Input device"
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: Font.Bold
-                            color: Theme.primary
+                        Row {
+                            spacing: Theme.spacingS
+                            height: 20
+
+                            DankIcon {
+                                name: "mic"
+                                size: 18
+                                color: Theme.primary
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            StyledText {
+                                text: "Input device"
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Font.Bold
+                                color: Theme.primary
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
 
                         Repeater {
@@ -944,7 +1192,7 @@ PluginComponent {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        Pipewire.preferredDefaultAudioSource = modelData
+                                        Pipewire.preferredDefaultAudioSource = modelData;
                                     }
                                 }
                             }

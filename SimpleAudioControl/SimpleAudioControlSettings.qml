@@ -76,8 +76,77 @@ PluginSettings {
                 defaultValue: false
             }
 
-        }
+            ToggleSetting {
+                id: customTabRadiusToggle
+                settingKey: "useCustomTabRadius"
+                label: "Custom Tab Radius"
+                description: "Override the theme's tab radius"
+                defaultValue: false
+            }
 
+            Timer {
+                id: tabRadiusDebounce
+                interval: 300
+                repeat: false
+                onTriggered: {
+                    saveValue("tabRadius", Math.round(tabRadiusSlider.value));
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: 2
+                visible: customTabRadiusToggle.value
+
+                Row {
+                    width: parent.width
+                    height: 24
+                    spacing: Theme.spacingM
+
+                    StyledText {
+                        text: "Tab Radius"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 180
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    DankSlider {
+                        id: tabRadiusSlider
+                        width: parent.width - 180 - Theme.spacingM - tabRadiusValue.width - Theme.spacingM
+                        minimum: 0
+                        maximum: 40
+                        showValue: false
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Binding {
+                            target: tabRadiusSlider
+                            property: "value"
+                            value: loadValue("tabRadius", Theme.cornerRadius)
+                        }
+
+                        onSliderValueChanged: newValue => {
+                            tabRadiusDebounce.restart();
+                        }
+                    }
+
+                    StyledText {
+                        id: tabRadiusValue
+                        text: Math.round(tabRadiusSlider.value) + "px"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 50
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                StyledText {
+                    text: "Corner radius for the Volumes/Devices tabs"
+                    font.pixelSize: Theme.fontSizeSmall * 0.9
+                    opacity: 0.5
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                }
+            }
+        }
     }
 
     // ── Scroll Behavior ──
@@ -106,7 +175,7 @@ PluginSettings {
                 interval: 300
                 repeat: false
                 onTriggered: {
-                    saveValue("volumeScrollStep", Math.round(speakerStepSlider.value))
+                    saveValue("volumeScrollStep", Math.round(speakerStepSlider.value));
                 }
             }
 
@@ -140,8 +209,8 @@ PluginSettings {
                             value: loadValue("volumeScrollStep", 2)
                         }
 
-                        onSliderValueChanged: (newValue) => {
-                            speakerStepDebounce.restart()
+                        onSliderValueChanged: newValue => {
+                            speakerStepDebounce.restart();
                         }
                     }
 
@@ -168,7 +237,7 @@ PluginSettings {
                 interval: 300
                 repeat: false
                 onTriggered: {
-                    saveValue("micVolumeScrollStep", Math.round(micStepSlider.value))
+                    saveValue("micVolumeScrollStep", Math.round(micStepSlider.value));
                 }
             }
 
@@ -202,8 +271,8 @@ PluginSettings {
                             value: loadValue("micVolumeScrollStep", 2)
                         }
 
-                        onSliderValueChanged: (newValue) => {
-                            micStepDebounce.restart()
+                        onSliderValueChanged: newValue => {
+                            micStepDebounce.restart();
                         }
                     }
 
@@ -230,7 +299,7 @@ PluginSettings {
                 interval: 300
                 repeat: false
                 onTriggered: {
-                    saveValue("maxVolumePercent", Math.round(maxVolumeSlider.value))
+                    saveValue("maxVolumePercent", Math.round(maxVolumeSlider.value));
                 }
             }
 
@@ -254,7 +323,7 @@ PluginSettings {
                         id: maxVolumeSlider
                         width: parent.width - 180 - Theme.spacingM - maxVolumeValue.width - Theme.spacingM
                         minimum: 100
-                        maximum: 300
+                        maximum: 500
                         showValue: false
                         anchors.verticalCenter: parent.verticalCenter
 
@@ -264,8 +333,8 @@ PluginSettings {
                             value: loadValue("maxVolumePercent", 100)
                         }
 
-                        onSliderValueChanged: (newValue) => {
-                            maxVolumeDebounce.restart()
+                        onSliderValueChanged: newValue => {
+                            maxVolumeDebounce.restart();
                         }
                     }
 
@@ -279,16 +348,14 @@ PluginSettings {
                 }
 
                 StyledText {
-                    text: "Maximum allowed volume (up to 300%)"
+                    text: "Maximum allowed per-app volume (up to 500%)"
                     font.pixelSize: Theme.fontSizeSmall * 0.9
                     opacity: 0.5
                     width: parent.width
                     wrapMode: Text.Wrap
                 }
             }
-
         }
-
     }
 
     // ── Info ──
@@ -322,7 +389,6 @@ PluginSettings {
                     color: Theme.surfaceText
                     anchors.verticalCenter: parent.verticalCenter
                 }
-
             }
 
             StyledText {
@@ -333,9 +399,6 @@ PluginSettings {
                 width: parent.width
                 lineHeight: 1.4
             }
-
         }
-
     }
-
 }
