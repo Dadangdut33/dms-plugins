@@ -295,7 +295,7 @@ PluginComponent {
 
                 // Add a little spacing on this horizontal bar layout
                 Item {
-                    width: 0.1
+                    width: 0.09
                     height: 1
                 }
             }
