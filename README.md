@@ -23,5 +23,3 @@ git clone https://github.com/Dadangdut33/dms-plugins.git
 cp -r dms-plugins/{plugin_name} ~/.config/DankMaterialShell/plugins/
 dms restart   # or reload your session
 ```
-
-Enable **USB Manager** and its daemon in plugin settings.
