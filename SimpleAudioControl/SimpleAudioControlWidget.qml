@@ -24,6 +24,10 @@ PluginComponent {
     property bool useCustomTabRadius: pluginData.useCustomTabRadius !== undefined ? pluginData.useCustomTabRadius : false
     property int tabRadius: useCustomTabRadius ? (pluginData.tabRadius || Theme.cornerRadius) : Theme.cornerRadius
     property int tabInnerRadius: Math.max(0, tabRadius - 3)
+    property string speakerIconColorKey: pluginData.speakerIconColorKey || "primary"
+    property string speakerTextColorKey: pluginData.speakerTextColorKey || "surfaceText"
+    property string micIconColorKey: pluginData.micIconColorKey || "primary"
+    property string micTextColorKey: pluginData.micTextColorKey || "surfaceText"
 
     // ── PipeWire references ──
     readonly property PwNode sink: Pipewire.defaultAudioSink
@@ -154,6 +158,49 @@ PluginComponent {
         return props["application.name"] || root.displayName(node);
     }
 
+    function themeColorFromKey(key, fallback) {
+        switch (key) {
+        case "primary":
+            return Theme.primary;
+        case "primaryText":
+            return Theme.primaryText;
+        case "primaryContainer":
+            return Theme.primaryContainer;
+        case "secondary":
+            return Theme.secondary;
+        case "surface":
+            return Theme.surface;
+        case "surfaceText":
+            return Theme.surfaceText;
+        case "surfaceVariant":
+            return Theme.surfaceVariant;
+        case "surfaceVariantText":
+            return Theme.surfaceVariantText;
+        case "surfaceTint":
+            return Theme.surfaceTint;
+        case "background":
+            return Theme.background;
+        case "backgroundText":
+            return Theme.backgroundText;
+        case "outline":
+            return Theme.outline;
+        case "surfaceContainer":
+            return Theme.surfaceContainer;
+        case "surfaceContainerHigh":
+            return Theme.surfaceContainerHigh;
+        case "surfaceContainerHighest":
+            return Theme.surfaceContainerHighest;
+        case "error":
+            return Theme.error;
+        case "warning":
+            return Theme.warning;
+        case "info":
+            return Theme.info;
+        default:
+            return fallback;
+        }
+    }
+
     function adjustStreamVolume(node, delta) {
         if (!node?.audio)
             return;
@@ -215,7 +262,7 @@ PluginComponent {
                 DankIcon {
                     name: root.speakerIconName()
                     size: root.iconSize
-                    color: root.sinkMuted ? Theme.surfaceVariantText : Theme.primary
+                    color: root.sinkMuted ? Theme.surfaceVariantText : root.themeColorFromKey(root.speakerIconColorKey, Theme.primary)
                     anchors.verticalCenter: parent.verticalCenter
                     visible: root.showSpeaker
                 }
@@ -224,7 +271,7 @@ PluginComponent {
                     text: root.sinkVolume
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.Medium
-                    color: root.sinkMuted ? Theme.surfaceVariantText : Theme.surfaceText
+                    color: root.sinkMuted ? Theme.surfaceVariantText : root.themeColorFromKey(root.speakerTextColorKey, Theme.surfaceText)
                     anchors.verticalCenter: parent.verticalCenter
                     visible: root.showSpeaker && root.showSpeakerValue
                 }
@@ -232,7 +279,7 @@ PluginComponent {
                 DankIcon {
                     name: root.micIconName()
                     size: root.iconSize
-                    color: root.sourceMuted ? Theme.surfaceVariantText : Theme.primary
+                    color: root.sourceMuted ? Theme.surfaceVariantText : root.themeColorFromKey(root.micIconColorKey, Theme.primary)
                     anchors.verticalCenter: parent.verticalCenter
                     visible: root.showMic
                 }
@@ -241,9 +288,15 @@ PluginComponent {
                     text: root.sourceVolume
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.Medium
-                    color: root.sourceMuted ? Theme.surfaceVariantText : Theme.surfaceText
+                    color: root.sourceMuted ? Theme.surfaceVariantText : root.themeColorFromKey(root.micTextColorKey, Theme.surfaceText)
                     anchors.verticalCenter: parent.verticalCenter
                     visible: root.showMic && root.showMicValue
+                }
+
+                // Add a little spacing on this horizontal bar layout
+                Item {
+                    width: 0.1
+                    height: 1
                 }
             }
 
@@ -279,7 +332,7 @@ PluginComponent {
                 DankIcon {
                     name: root.speakerIconName()
                     size: root.iconSize
-                    color: root.sinkMuted ? Theme.surfaceVariantText : Theme.primary
+                    color: root.sinkMuted ? Theme.surfaceVariantText : root.themeColorFromKey(root.speakerIconColorKey, Theme.primary)
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: root.showSpeaker
                 }
@@ -288,7 +341,7 @@ PluginComponent {
                     text: root.sinkVolume
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.Medium
-                    color: root.sinkMuted ? Theme.surfaceVariantText : Theme.surfaceText
+                    color: root.sinkMuted ? Theme.surfaceVariantText : root.themeColorFromKey(root.speakerTextColorKey, Theme.surfaceText)
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: root.showSpeaker && root.showSpeakerValue
                 }
@@ -296,7 +349,7 @@ PluginComponent {
                 DankIcon {
                     name: root.micIconName()
                     size: root.iconSize
-                    color: root.sourceMuted ? Theme.surfaceVariantText : Theme.primary
+                    color: root.sourceMuted ? Theme.surfaceVariantText : root.themeColorFromKey(root.micIconColorKey, Theme.primary)
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: root.showMic
                 }
@@ -305,7 +358,7 @@ PluginComponent {
                     text: root.sourceVolume
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.Medium
-                    color: root.sourceMuted ? Theme.surfaceVariantText : Theme.surfaceText
+                    color: root.sourceMuted ? Theme.surfaceVariantText : root.themeColorFromKey(root.micTextColorKey, Theme.surfaceText)
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: root.showMic && root.showMicValue
                 }
@@ -816,20 +869,64 @@ PluginComponent {
                                                     width: 28 * streamItem.controlsProgress
                                                     height: 28
                                                     buttonSize: 28
-                                                    radius: 14
-                                                    iconName: "drag_indicator"
-                                                    iconSize: 16
-                                                    iconColor: Theme.surfaceVariantText
-                                                    backgroundColor: "transparent"
+                                                    radius: width / 2
+                                                    iconName: ""
+                                                    iconSize: 0
+                                                    iconColor: "transparent"
+                                                    backgroundColor: streamScrollBtn.knobHovered ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh
                                                     opacity: streamItem.controlsProgress
                                                     enabled: streamItem.controlsProgress > 0.1
                                                     visible: streamItem.controlsProgress > 0
                                                     tooltipText: "Drag or scroll to adjust"
                                                     tooltipSide: "top"
+                                                    onEntered: streamScrollBtn.knobHovered = true
+                                                    onExited: streamScrollBtn.knobHovered = false
 
                                                     property real dragAccum: 0
                                                     property real dragSensitivity: 4
-                                                    property real lastDragTranslation: 0
+                                                    property real lastDragTranslationX: 0
+                                                    property real lastDragTranslationY: 0
+                                                    property bool knobHovered: false
+                                                    property real knobAngle: {
+                                                        const vol = modelData.audio ? Math.round(modelData.audio.volume * 100) : 0;
+                                                        const clamped = Math.max(0, Math.min(root.maxVolumePercent || 100, vol));
+                                                        const range = 270;
+                                                        const start = -135;
+                                                        return start + (clamped / (root.maxVolumePercent || 100)) * range;
+                                                    }
+
+                                                    Rectangle {
+                                                        anchors.centerIn: parent
+                                                        width: parent.width - 8
+                                                        height: parent.height - 8
+                                                        radius: width / 2
+                                                        color: "transparent"
+                                                        border.width: 1
+                                                        border.color: streamScrollBtn.knobHovered ? Theme.surfaceVariantText : Theme.outlineVariant
+                                                    }
+
+                                                    Item {
+                                                        width: parent.width
+                                                        height: parent.height
+                                                        anchors.centerIn: parent
+                                                        clip: true
+
+                                                        Rectangle {
+                                                            id: knobIndicator
+                                                            width: 3
+                                                            height: parent.height * 0.25
+                                                            radius: 2
+                                                            color: streamScrollBtn.knobHovered ? Theme.primary : Theme.surfaceVariantText
+                                                            x: parent.width / 2 - width / 2
+                                                            y: parent.height / 2 - height - 2
+
+                                                            transform: Rotation {
+                                                                origin.x: knobIndicator.width / 2        // horizontal center of the indicator
+                                                                origin.y: knobIndicator.height + 2       // bottom of indicator + gap = knob center
+                                                                angle: streamScrollBtn.knobAngle
+                                                            }
+                                                        }
+                                                    }
 
                                                     WheelHandler {
                                                         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
@@ -842,16 +939,20 @@ PluginComponent {
                                                     DragHandler {
                                                         target: null
                                                         yAxis.enabled: true
-                                                        xAxis.enabled: false
+                                                        xAxis.enabled: true
                                                         onActiveChanged: {
                                                             if (active) {
                                                                 streamScrollBtn.dragAccum = 0;
-                                                                streamScrollBtn.lastDragTranslation = translation.y;
+                                                                streamScrollBtn.lastDragTranslationX = translation.x;
+                                                                streamScrollBtn.lastDragTranslationY = translation.y;
                                                             }
                                                         }
                                                         onTranslationChanged: {
-                                                            var delta = streamScrollBtn.lastDragTranslation - translation.y;
-                                                            streamScrollBtn.lastDragTranslation = translation.y;
+                                                            var deltaX = translation.x - streamScrollBtn.lastDragTranslationX;
+                                                            var deltaY = streamScrollBtn.lastDragTranslationY - translation.y;
+                                                            streamScrollBtn.lastDragTranslationX = translation.x;
+                                                            streamScrollBtn.lastDragTranslationY = translation.y;
+                                                            var delta = deltaX + deltaY;
                                                             streamScrollBtn.dragAccum += delta;
                                                             var steps = Math.trunc(streamScrollBtn.dragAccum / streamScrollBtn.dragSensitivity);
                                                             if (steps !== 0) {

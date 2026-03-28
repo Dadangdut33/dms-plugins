@@ -11,6 +11,81 @@ PluginSettings {
 
     pluginId: "simpleAudioControl"
 
+    property var themeColorOptions: [
+        {
+            label: "Primary",
+            value: "primary"
+        },
+        {
+            label: "Primary Text",
+            value: "primaryText"
+        },
+        {
+            label: "Primary Container",
+            value: "primaryContainer"
+        },
+        {
+            label: "Secondary",
+            value: "secondary"
+        },
+        {
+            label: "Surface",
+            value: "surface"
+        },
+        {
+            label: "Surface Text",
+            value: "surfaceText"
+        },
+        {
+            label: "Surface Variant",
+            value: "surfaceVariant"
+        },
+        {
+            label: "Surface Variant Text",
+            value: "surfaceVariantText"
+        },
+        {
+            label: "Surface Tint",
+            value: "surfaceTint"
+        },
+        {
+            label: "Background",
+            value: "background"
+        },
+        {
+            label: "Background Text",
+            value: "backgroundText"
+        },
+        {
+            label: "Outline",
+            value: "outline"
+        },
+        {
+            label: "Surface Container",
+            value: "surfaceContainer"
+        },
+        {
+            label: "Surface Container High",
+            value: "surfaceContainerHigh"
+        },
+        {
+            label: "Surface Container Highest",
+            value: "surfaceContainerHighest"
+        },
+        {
+            label: "Error",
+            value: "error"
+        },
+        {
+            label: "Warning",
+            value: "warning"
+        },
+        {
+            label: "Info",
+            value: "info"
+        }
+    ]
+
     StyledText {
         width: parent.width
         text: "Simple Audio Control Plugin Settings"
@@ -74,6 +149,46 @@ PluginSettings {
                 label: "Show Microphone Volume"
                 description: "Display numeric input level next to microphone icon"
                 defaultValue: false
+            }
+
+            StyledText {
+                text: "Widget Colors"
+                font.pixelSize: Theme.fontSizeSmall
+                font.weight: Font.Medium
+                color: Theme.surfaceText
+                topPadding: Theme.spacingS
+            }
+
+            SelectionSetting {
+                settingKey: "speakerIconColorKey"
+                label: "Speaker Icon Color"
+                description: "Theme color for the speaker icon"
+                options: root.themeColorOptions
+                defaultValue: "primary"
+            }
+
+            SelectionSetting {
+                settingKey: "speakerTextColorKey"
+                label: "Speaker Text Color"
+                description: "Theme color for the speaker volume text"
+                options: root.themeColorOptions
+                defaultValue: "surfaceText"
+            }
+
+            SelectionSetting {
+                settingKey: "micIconColorKey"
+                label: "Mic Icon Color"
+                description: "Theme color for the microphone icon"
+                options: root.themeColorOptions
+                defaultValue: "primary"
+            }
+
+            SelectionSetting {
+                settingKey: "micTextColorKey"
+                label: "Mic Text Color"
+                description: "Theme color for the microphone volume text"
+                options: root.themeColorOptions
+                defaultValue: "surfaceText"
             }
 
             ToggleSetting {
