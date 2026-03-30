@@ -11,7 +11,8 @@ PluginSettings {
     pluginId: "clipboardPlus"
     Component.onCompleted: tabOrderInitTimer.restart()
     onVisibleChanged: {
-        if (visible) tabOrderInitTimer.restart();
+        if (visible)
+            tabOrderInitTimer.restart();
     }
 
     Timer {
@@ -84,12 +85,18 @@ PluginSettings {
 
     function labelForTabKey(key) {
         switch (key) {
-        case "clipboard": return "Clipboard";
-        case "search":    return "Search";
-        case "category":  return "Category";
-        case "pinned":    return "Pinned";
-        case "todo":      return "Todo";
-        default:          return key;
+        case "clipboard":
+            return "Clipboard";
+        case "search":
+            return "Search";
+        case "category":
+            return "Category";
+        case "pinned":
+            return "Pinned";
+        case "todo":
+            return "Todo";
+        default:
+            return key;
         }
     }
 
@@ -97,54 +104,66 @@ PluginSettings {
         tabOrderInitInProgress = true;
         tabOrderModel.clear();
         const defaultOrder = defaultTabOrder();
-        const rawOrder   = loadValue("tabOrder", "");
+        const rawOrder = loadValue("tabOrder", "");
         const rawEnabled = loadValue("tabOrderEnabled", "");
-        const parsedOrder   = rawOrder   ? rawOrder.split(/[,\s]+/).filter(Boolean)   : [];
+        const parsedOrder = rawOrder ? rawOrder.split(/[,\s]+/).filter(Boolean) : [];
         const parsedEnabled = rawEnabled ? rawEnabled.split(/[,\s]+/).filter(Boolean) : [];
         const enabledSet = {};
-        for (let i = 0; i < parsedEnabled.length; i++) enabledSet[parsedEnabled[i]] = true;
+        for (let i = 0; i < parsedEnabled.length; i++)
+            enabledSet[parsedEnabled[i]] = true;
         const seen = {};
         const finalOrder = [];
         for (let i = 0; i < parsedOrder.length; i++) {
             const key = parsedOrder[i];
-            if (defaultOrder.indexOf(key) === -1 || seen[key]) continue;
+            if (defaultOrder.indexOf(key) === -1 || seen[key])
+                continue;
             seen[key] = true;
             finalOrder.push(key);
         }
         for (let i = 0; i < defaultOrder.length; i++) {
             const key = defaultOrder[i];
-            if (!seen[key]) finalOrder.push(key);
+            if (!seen[key])
+                finalOrder.push(key);
         }
         for (let i = 0; i < finalOrder.length; i++) {
             const key = finalOrder[i];
             tabOrderModel.append({
-                key:     key,
-                label:   labelForTabKey(key),
+                key: key,
+                label: labelForTabKey(key),
                 enabled: parsedEnabled.length === 0 ? true : !!enabledSet[key]
             });
         }
-        Qt.callLater(() => { tabOrderInitInProgress = false; });
+        Qt.callLater(() => {
+            tabOrderInitInProgress = false;
+        });
     }
 
     function saveTabOrderModel() {
-        const order   = [];
+        const order = [];
         const enabled = [];
         for (let i = 0; i < tabOrderModel.count; i++) {
             const item = tabOrderModel.get(i);
             order.push(item.key);
-            if (item.enabled) enabled.push(item.key);
+            if (item.enabled)
+                enabled.push(item.key);
         }
-        saveValue("tabOrder",        order.join(","));
+        saveValue("tabOrder", order.join(","));
         saveValue("tabOrderEnabled", enabled.join(","));
     }
 
     function moveTabOrderItem(fromIndex, toIndex) {
-        if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
-        if (fromIndex >= tabOrderModel.count || toIndex >= tabOrderModel.count) return;
+        if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0)
+            return;
+        if (fromIndex >= tabOrderModel.count || toIndex >= tabOrderModel.count)
+            return;
         const items = [];
         for (let i = 0; i < tabOrderModel.count; i++) {
             const item = tabOrderModel.get(i);
-            items.push({ key: item.key, label: item.label, enabled: item.enabled });
+            items.push({
+                key: item.key,
+                label: item.label,
+                enabled: item.enabled
+            });
         }
         const moved = items.splice(fromIndex, 1)[0];
         items.splice(toIndex, 0, moved);
@@ -338,7 +357,9 @@ PluginSettings {
                             }
                         }
 
-                        Item { Layout.fillWidth: true }
+                        Item {
+                            Layout.fillWidth: true
+                        }
 
                         DankActionButton {
                             width: 26
@@ -431,7 +452,7 @@ PluginSettings {
                         }
 
                         onSliderValueChanged: () => {
-                            backgroundOpacityDebounce.restart()
+                            backgroundOpacityDebounce.restart();
                         }
                     }
 
@@ -521,7 +542,7 @@ PluginSettings {
                         }
 
                         onSliderValueChanged: () => {
-                            pinnedOpacityDebounce.restart()
+                            pinnedOpacityDebounce.restart();
                         }
                     }
 
@@ -574,7 +595,7 @@ PluginSettings {
                         }
 
                         onSliderValueChanged: () => {
-                            clipboardOpacityDebounce.restart()
+                            clipboardOpacityDebounce.restart();
                         }
                     }
 
@@ -692,7 +713,7 @@ PluginSettings {
                         }
 
                         onSliderValueChanged: () => {
-                            textLimitDebounce.restart()
+                            textLimitDebounce.restart();
                         }
                     }
 
@@ -753,7 +774,7 @@ PluginSettings {
                         }
 
                         onSliderValueChanged: () => {
-                            imageLimitDebounce.restart()
+                            imageLimitDebounce.restart();
                         }
                     }
 
@@ -862,7 +883,7 @@ PluginSettings {
                         }
 
                         onSliderValueChanged: () => {
-                            autoPasteDelayDebounce.restart()
+                            autoPasteDelayDebounce.restart();
                         }
                     }
 

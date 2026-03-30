@@ -38,11 +38,10 @@ Rectangle {
     readonly property bool isText: !isImage && !isColor && !isLink && !isCode && !isEmoji && !isFile
     readonly property string displayText: {
         const decodeEnabled = pluginApi?.pluginSettings?.enableFullTextDecode ?? false;
-        if (!decodeEnabled) return (preview || "");
+        if (!decodeEnabled)
+            return (preview || "");
         const _rev = pluginApi?.mainInstance?.decodedRevision || 0;
-        const full = decodeEnabled && pluginApi?.mainInstance?.getDecodedText
-            ? pluginApi.mainInstance.getDecodedText(clipboardId)
-            : "";
+        const full = decodeEnabled && pluginApi?.mainInstance?.getDecodedText ? pluginApi.mainInstance.getDecodedText(clipboardId) : "";
         const base = (full && full.length > 0) ? full : (preview || "");
         const limit = pluginApi?.pluginSettings?.maxDecodedTextLength ?? 250;
         if (decodeEnabled && limit && base.length > limit) {
@@ -68,19 +67,47 @@ Rectangle {
     function paletteForType() {
         switch (typeLabel) {
         case "Image":
-            return { bg: Theme.surfaceContainer, fg: Theme.surfaceText, sep: Theme.outline };
+            return {
+                bg: Theme.surfaceContainer,
+                fg: Theme.surfaceText,
+                sep: Theme.outline
+            };
         case "Link":
-            return { bg: Theme.primaryBackground, fg: Theme.surfaceText, sep: Theme.surfaceContainer };
+            return {
+                bg: Theme.primaryBackground,
+                fg: Theme.surfaceText,
+                sep: Theme.surfaceContainer
+            };
         case "Code":
-            return { bg: Theme.surfaceContainerHighest, fg: Theme.surfaceText, sep: Theme.outline };
+            return {
+                bg: Theme.surfaceContainerHighest,
+                fg: Theme.surfaceText,
+                sep: Theme.outline
+            };
         case "Color":
-            return { bg: Theme.surfaceVariant, fg: Theme.surfaceText, sep: Theme.outline };
+            return {
+                bg: Theme.surfaceVariant,
+                fg: Theme.surfaceText,
+                sep: Theme.outline
+            };
         case "File":
-            return { bg: Theme.surface, fg: Theme.surfaceText, sep: Theme.outline };
+            return {
+                bg: Theme.surface,
+                fg: Theme.surfaceText,
+                sep: Theme.outline
+            };
         case "Emoji":
-            return { bg: Theme.surfaceVariant, fg: Theme.surfaceText, sep: Theme.outline };
+            return {
+                bg: Theme.surfaceVariant,
+                fg: Theme.surfaceText,
+                sep: Theme.outline
+            };
         default:
-            return { bg: Theme.surfaceVariant, fg: Theme.surfaceVariantText, sep: Theme.outline };
+            return {
+                bg: Theme.surfaceVariant,
+                fg: Theme.surfaceVariantText,
+                sep: Theme.outline
+            };
         }
     }
 
@@ -108,9 +135,7 @@ Rectangle {
     readonly property int imageBodyHeight: 160
     // Use root.width to compute body width directly, avoiding a dependency on bodyItem.height
     readonly property int bodyWidth: root.width - bodyPadding * 2
-    readonly property int contentImplicitHeight: root.isImage
-                                              ? imageBodyHeight
-                                              : Math.max(24, Math.ceil(previewMeasure.contentHeight))
+    readonly property int contentImplicitHeight: root.isImage ? imageBodyHeight : Math.max(24, Math.ceil(previewMeasure.contentHeight))
     readonly property int separatorHeight: 1
     readonly property int computedHeight: Math.min(maxExpandedHeight, headerHeight + separatorHeight + bodyPadding * 2 + contentImplicitHeight)
     property int extraCardPadding: 16
@@ -254,11 +279,11 @@ Rectangle {
                 anchors.fill: parent
                 hoverEnabled: true
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
-                onClicked: function(mouse) {
+                onClicked: function (mouse) {
                     if (mouse.button === Qt.RightButton) {
-                        root.rightClicked()
+                        root.rightClicked();
                     } else {
-                        root.clicked()
+                        root.clicked();
                     }
                 }
             }

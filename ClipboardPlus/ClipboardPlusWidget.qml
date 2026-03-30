@@ -42,48 +42,50 @@ PluginComponent {
     property string tabOrderEnabled: pluginData.tabOrderEnabled !== undefined ? pluginData.tabOrderEnabled : ""
 
     function screenKey(screen) {
-        return screen?.name || "default"
+        return screen?.name || "default";
     }
 
     function resolveScreen(screen) {
-        if (screen) return screen
-        const screens = Quickshell.screens || []
-        const focusedName = BarWidgetService.getFocusedScreenName()
+        if (screen)
+            return screen;
+        const screens = Quickshell.screens || [];
+        const focusedName = BarWidgetService.getFocusedScreenName();
         if (focusedName) {
-            const focused = screens.find(s => s && s.name === focusedName)
-            if (focused) return focused
+            const focused = screens.find(s => s && s.name === focusedName);
+            if (focused)
+                return focused;
         }
-        return screens.length > 0 ? screens[0] : null
+        return screens.length > 0 ? screens[0] : null;
     }
 
     function isPanelOpen(screen) {
-        const resolved = resolveScreen(screen)
-        const key = screenKey(resolved)
-        return panelByName[key] ? panelByName[key].visible : false
+        const resolved = resolveScreen(screen);
+        const key = screenKey(resolved);
+        return panelByName[key] ? panelByName[key].visible : false;
     }
 
     function setPanelVisible(screen, visible) {
-        const resolved = resolveScreen(screen)
-        const key = screenKey(resolved)
+        const resolved = resolveScreen(screen);
+        const key = screenKey(resolved);
         if (visible) {
             // Close other panels when opening on a new screen
             for (const name in panelByName) {
                 if (name !== key && panelByName[name]) {
-                    panelByName[name].setOpen(false)
+                    panelByName[name].setOpen(false);
                 }
             }
         }
-        const panel = panelByName[key]
+        const panel = panelByName[key];
         if (panel) {
-            panel.setOpen(visible)
+            panel.setOpen(visible);
         }
     }
 
     function updateBarVisibility() {
         if (root.showBarWidget) {
-            root.clearVisibilityOverride()
+            root.clearVisibilityOverride();
         } else {
-            root.setVisibilityOverride(false)
+            root.setVisibilityOverride(false);
         }
     }
 
@@ -92,35 +94,41 @@ PluginComponent {
 
         property var pluginSettings: settingsProxy
         property var mainInstance: null
-        property var manifest: ({ id: "clipboardPlus", name: "ClipBoard+" })
+        property var manifest: ({
+                id: "clipboardPlus",
+                name: "ClipBoard+"
+            })
 
         function tr(key) {
-            return ""
+            return "";
         }
 
-        function saveSettings() { }
+        function saveSettings() {
+        }
 
         function withCurrentScreen(callback) {
-            const screens = Quickshell.screens || []
-            const focusedName = BarWidgetService.getFocusedScreenName()
-            let screen = screens.length > 0 ? screens[0] : null
+            const screens = Quickshell.screens || [];
+            const focusedName = BarWidgetService.getFocusedScreenName();
+            let screen = screens.length > 0 ? screens[0] : null;
             if (focusedName) {
-                const focused = screens.find(s => s && s.name === focusedName)
-                if (focused) screen = focused
+                const focused = screens.find(s => s && s.name === focusedName);
+                if (focused)
+                    screen = focused;
             }
-            if (callback && screen) callback(screen)
+            if (callback && screen)
+                callback(screen);
         }
 
         function openPanel(screen) {
-            root.setPanelVisible(screen, true)
+            root.setPanelVisible(screen, true);
         }
 
         function closePanel(screen) {
-            root.setPanelVisible(screen, false)
+            root.setPanelVisible(screen, false);
         }
 
         function togglePanel(screen) {
-            root.setPanelVisible(screen, !root.isPanelOpen(screen))
+            root.setPanelVisible(screen, !root.isPanelOpen(screen));
         }
     }
 
@@ -162,18 +170,18 @@ PluginComponent {
     }
 
     Component.onCompleted: {
-        clipboardPlusApi.mainInstance = main
-        ClipboardPlusState.mainInstance = main
-        updateBarVisibility()
+        clipboardPlusApi.mainInstance = main;
+        ClipboardPlusState.mainInstance = main;
+        updateBarVisibility();
     }
     onShowBarWidgetChanged: updateBarVisibility()
 
     pillClickAction: (x, y, width, section, screen) => {
-        clipboardPlusApi.togglePanel(screen)
+        clipboardPlusApi.togglePanel(screen);
     }
 
     pillRightClickAction: () => {
-        PopoutService.openSettingsWithTab("plugins")
+        PopoutService.openSettingsWithTab("plugins");
     }
 
     horizontalBarPill: Component {
@@ -231,22 +239,22 @@ PluginComponent {
             WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
             Component.onCompleted: {
-                const key = screen?.name || "default"
-                panelByName[key] = panelWindow
+                const key = screen?.name || "default";
+                panelByName[key] = panelWindow;
             }
 
             onVisibleChanged: {
                 if (visible) {
-                    panelContent.forceActiveFocus()
+                    panelContent.forceActiveFocus();
                 }
             }
 
             Component.onDestruction: {
-                const key = screen?.name || "default"
+                const key = screen?.name || "default";
                 if (panelByName[key] === panelWindow) {
-                    const copy = Object.assign({}, panelByName)
-                    delete copy[key]
-                    panelByName = copy
+                    const copy = Object.assign({}, panelByName);
+                    delete copy[key];
+                    panelByName = copy;
                 }
             }
 
@@ -254,7 +262,8 @@ PluginComponent {
                 if (state) {
                     open = true;
                     visible = true;
-                    if (closeTimer.running) closeTimer.stop();
+                    if (closeTimer.running)
+                        closeTimer.stop();
                 } else {
                     open = false;
                     if (panelContent.animationsEnabled) {
@@ -285,5 +294,4 @@ PluginComponent {
             }
         }
     }
-
 }

@@ -30,7 +30,7 @@ Item {
 
         onClicked: {
             if (pluginApi?.openPanel) {
-                pluginApi.openPanel(screen, root)
+                pluginApi.openPanel(screen, root);
             }
         }
     }
@@ -56,8 +56,14 @@ Item {
 
                 Repeater {
                     model: [
-                        { label: "Toggle ClipBoard+", action: "toggle-clipboardPlus" },
-                        { label: "Open Settings", action: "open-settings" }
+                        {
+                            label: "Toggle ClipBoard+",
+                            action: "toggle-clipboardPlus"
+                        },
+                        {
+                            label: "Open Settings",
+                            action: "open-settings"
+                        }
                     ]
 
                     delegate: Rectangle {
@@ -81,11 +87,11 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             onClicked: {
-                                contextMenu.close()
+                                contextMenu.close();
                                 if (modelData.action === "toggle-clipboardPlus") {
-                                    pluginApi?.togglePanel && pluginApi.togglePanel(screen)
+                                    pluginApi?.togglePanel && pluginApi.togglePanel(screen);
                                 } else if (modelData.action === "open-settings") {
-                                    PopoutService.openSettingsWithTab("plugins")
+                                    PopoutService.openSettingsWithTab("plugins");
                                 }
                             }
                         }
@@ -99,10 +105,10 @@ Item {
         anchors.fill: parent
         acceptedButtons: Qt.RightButton
         onClicked: {
-            const pos = root.mapToItem(Overlay.overlay, 0, root.height)
-            contextMenu.x = pos.x
-            contextMenu.y = pos.y
-            contextMenu.open()
+            const pos = root.mapToItem(Overlay.overlay, 0, root.height);
+            contextMenu.x = pos.x;
+            contextMenu.y = pos.y;
+            contextMenu.open();
         }
     }
 }

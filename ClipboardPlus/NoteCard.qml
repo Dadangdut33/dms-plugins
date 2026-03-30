@@ -438,7 +438,7 @@ Rectangle {
             property real startX: 0
             property real startY: 0
 
-            onPressed: function(mouse) {
+            onPressed: function (mouse) {
                 startW = root.width;
                 startH = root.height;
                 startX = mouse.x;
@@ -448,7 +448,7 @@ Rectangle {
                 }
             }
 
-            onPositionChanged: function(mouse) {
+            onPositionChanged: function (mouse) {
                 const dx = mouse.x - startX;
                 const dy = mouse.y - startY;
                 const newW = Math.max(root.minWidth, Math.min(root.maxWidth, startW + dx));

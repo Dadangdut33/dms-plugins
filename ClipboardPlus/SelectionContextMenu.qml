@@ -86,7 +86,7 @@ PanelWindow {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         z: 0
 
-        onPositionChanged: function(mouse) {
+        onPositionChanged: function (mouse) {
             root.lastMouseX = mouse.x;
             root.lastMouseY = mouse.y;
         }
@@ -197,8 +197,8 @@ PanelWindow {
                                     hoverEnabled: true
 
                                     onClicked: {
-                                        root.itemSelected(modelData.action || "")
-                                        root.close()
+                                        root.itemSelected(modelData.action || "");
+                                        root.close();
                                     }
                                 }
                             }
