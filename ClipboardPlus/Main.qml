@@ -52,6 +52,7 @@ Item {
 
     // ── Auto-paste ─────────────────────────────────────────────────────────────
     property bool wtypeAvailable: false
+    property bool autoPasteAfterNextCopy: false
 
     // ── Limits ────────────────────────────────────────────────────────────────
     readonly property int maxPinnedItems: 100
@@ -60,6 +61,7 @@ Item {
     readonly property int maxPinnedTextMb: Math.max(1, Math.floor(pluginApi?.pluginSettings?.maxPinnedTextMb ?? 1)) * 1024 * 1024
     readonly property int maxPinnedImageMb: Math.max(5, Math.floor(pluginApi?.pluginSettings?.maxPinnedImageMb ?? 5)) * 1024 * 1024
     readonly property int maxPreviewImageSize: maxPinnedImageMb
+    readonly property bool useBuiltInDmsClipboard: pluginApi?.pluginSettings?.useBuiltInDmsClipboard ?? false
 
     // ── Paths ──────────────────────────────────────────────────────────────────
     readonly property string defaultConfigRoot: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/dms-clipboardPlus"
@@ -213,38 +215,39 @@ Item {
         pluginApi?.withCurrentScreen(screen => pluginApi.togglePanel(screen));
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // CLIPBOARD LIST
-    // ══════════════════════════════════════════════════════════════════════════
-
-    function list(maxPreviewWidth) {
-        if (listProc.running)
-            return;
-        root.loading = true;
-        const width = (maxPreviewWidth !== undefined && maxPreviewWidth !== null) ? maxPreviewWidth : root.previewWidth;
-        root.previewWidth = width;
-        listProc.command = ["cliphist", "list", "-preview-width", String(width)];
-        listProc.running = true;
+    function clipboardHistoryCommand(width) {
+        if (root.useBuiltInDmsClipboard)
+            return ["dms", "cl", "history", "--json"];
+        return ["cliphist", "list", "-preview-width", String(width)];
     }
 
-    Process {
-        id: listProc
-        stdout: StdioCollector {}
-        onExited: exitCode => {
-            if (exitCode !== 0) {
-                root.items = [];
-                root.loading = false;
-                return;
-            }
-            const lines = String(stdout.text).split('\n').filter(l => l.length > 0);
-            root.items = lines.map(l => {
+    function clipboardHeadCommand() {
+        if (root.useBuiltInDmsClipboard)
+            return ["dms", "cl", "history", "--json"];
+        return ["cliphist", "list", "-preview-width", "1"];
+    }
+
+    function clipboardGetTextCommand(id) {
+        if (root.useBuiltInDmsClipboard)
+            return ["sh", "-c", `dms cl get ${id} | base64 -d`];
+        return ["cliphist", "decode", String(id)];
+    }
+
+    function clipboardGetJsonCommand(id) {
+        return ["dms", "cl", "get", String(id), "--json"];
+    }
+
+    function parseHistoryItems(output) {
+        if (!root.useBuiltInDmsClipboard) {
+            const lines = String(output || "").split("\n").filter(l => l.length > 0);
+            return lines.map(l => {
                 let id = "", preview = "";
                 const m = l.match(/^(\d+)\s+(.+)$/);
                 if (m) {
                     id = m[1];
                     preview = m[2];
                 } else {
-                    const tab = l.indexOf('\t');
+                    const tab = l.indexOf("\t");
                     id = tab > -1 ? l.slice(0, tab) : l;
                     preview = tab > -1 ? l.slice(tab + 1) : "";
                 }
@@ -272,6 +275,55 @@ Item {
                     mime
                 };
             });
+        }
+
+        let parsed = [];
+        try {
+            parsed = JSON.parse(String(output || "[]"));
+        } catch (_) {
+            return [];
+        }
+
+        return (Array.isArray(parsed) ? parsed : []).map(entry => {
+            const id = String(entry.id ?? "");
+            const preview = String(entry.preview ?? "");
+            const mime = String(entry.mimeType || "text/plain");
+            const isImage = Boolean(entry.isImage) || mime.startsWith("image/");
+            if (id && !root.firstSeenById[id])
+                root.firstSeenById[id] = Date.now();
+            return {
+                id,
+                preview,
+                isImage,
+                mime
+            };
+        }).filter(entry => entry.id.length > 0);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // CLIPBOARD LIST
+    // ══════════════════════════════════════════════════════════════════════════
+
+    function list(maxPreviewWidth) {
+        if (listProc.running)
+            return;
+        root.loading = true;
+        const width = (maxPreviewWidth !== undefined && maxPreviewWidth !== null) ? maxPreviewWidth : root.previewWidth;
+        root.previewWidth = width;
+        listProc.command = root.clipboardHistoryCommand(width);
+        listProc.running = true;
+    }
+
+    Process {
+        id: listProc
+        stdout: StdioCollector {}
+        onExited: exitCode => {
+            if (exitCode !== 0) {
+                root.items = [];
+                root.loading = false;
+                return;
+            }
+            root.items = root.parseHistoryItems(stdout.text);
             root.loading = false;
             if (root.items.length > 0) {
                 root.lastClipboardId = root.items[0].id;
@@ -288,28 +340,21 @@ Item {
         repeat: true
         running: root.panelVisible && (pluginApi?.pluginSettings?.listenClipboardWhileOpen ?? false)
         onTriggered: {
-            if (!clipboardPollProc.running)
+            if (!clipboardPollProc.running) {
+                clipboardPollProc.command = root.clipboardHeadCommand();
                 clipboardPollProc.running = true;
+            }
         }
     }
 
     Process {
         id: clipboardPollProc
-        command: ["cliphist", "list", "-preview-width", "1"]
         stdout: StdioCollector {}
         onExited: exitCode => {
             if (exitCode !== 0)
                 return;
-            const output = String(stdout.text || "");
-            const firstLine = output.split("\n").find(l => l.length > 0) || "";
-            let id = "";
-            const m = firstLine.match(/^(\d+)\s+/);
-            if (m) {
-                id = m[1];
-            } else {
-                const tab = firstLine.indexOf("\t");
-                id = tab > -1 ? firstLine.slice(0, tab) : firstLine;
-            }
+            const polledItems = root.parseHistoryItems(stdout.text);
+            const id = polledItems.length > 0 ? polledItems[0].id : "";
             if (id && id !== root.lastClipboardId) {
                 root.lastClipboardId = id;
                 root.list();
@@ -327,30 +372,49 @@ Item {
             ToastService.showError("Invalid clipboard item");
             return;
         }
-        copyDecodeProc.command = ["sh", "-c", `cliphist decode ${id} | wl-copy`];
+        if (root.useBuiltInDmsClipboard) {
+            copyDecodeProc.command = ["dms", "cl", "get", String(id), "--copy"];
+        } else {
+            copyDecodeProc.command = ["sh", "-c", `cliphist decode ${id} | wl-copy`];
+        }
         copyDecodeProc.running = true;
     }
 
     Process {
         id: copyDecodeProc
         stdout: StdioCollector {}
-        onExited: exitCode => exitCode === 0 ? ToastService.showInfo("Copied to clipboard") : ToastService.showError("Failed to copy")
+        onExited: exitCode => {
+            if (exitCode !== 0) {
+                ToastService.showError("Failed to copy");
+                root.autoPasteAfterNextCopy = false;
+                return;
+            }
+            if (root.autoPasteAfterNextCopy) {
+                root.autoPasteAfterNextCopy = false;
+                root.triggerAutoPaste();
+            }
+            ToastService.showInfo("Copied to clipboard");
+        }
     }
 
     // Copy raw text or binary (used by pinned items)
-    function copyRawText(text) {
+    function copyRawText(text, silent) {
         if (text == null)
             return;
+        copyRawTextProc.notify = !silent;
+        copyRawTextProc.command = root.useBuiltInDmsClipboard ? ["dms", "cl", "copy"] : ["wl-copy", "--"];
         copyRawTextProc.running = true;
         copyRawTextProc.write(String(text));
         copyRawTextProc.stdinEnabled = false;
     }
 
-    function copyRawImage(mimeType, base64Data) {
+    function copyRawImage(mimeType, base64Data, silent) {
         const binaryStr = Qt.atob(base64Data);
         const bytes = new Uint8Array(binaryStr.length);
         for (let i = 0; i < binaryStr.length; i++)
             bytes[i] = binaryStr.charCodeAt(i);
+        copyRawImageProc.notify = !silent;
+        copyRawImageProc.command = root.useBuiltInDmsClipboard ? ["dms", "cl", "copy", "-t", mimeType] : ["wl-copy"];
         copyRawImageProc.running = true;
         copyRawImageProc.write(bytes);
         copyRawImageProc.stdinEnabled = false;
@@ -358,26 +422,42 @@ Item {
 
     Process {
         id: copyRawTextProc
-        command: ["wl-copy", "--"]
+        property bool notify: true
         stdinEnabled: true
         onExited: exitCode => {
             stdinEnabled = true;
+            if (exitCode === 0 && root.autoPasteAfterNextCopy) {
+                root.autoPasteAfterNextCopy = false;
+                root.triggerAutoPaste();
+            } else if (exitCode !== 0) {
+                root.autoPasteAfterNextCopy = false;
+            }
+            if (!notify)
+                return;
             exitCode === 0 ? ToastService.showInfo("Copied to clipboard") : ToastService.showError("Failed to copy text");
         }
     }
 
     Process {
         id: copyRawImageProc
-        command: ["wl-copy"]
+        property bool notify: true
         stdinEnabled: true
         onExited: exitCode => {
             stdinEnabled = true;
+            if (exitCode === 0 && root.autoPasteAfterNextCopy) {
+                root.autoPasteAfterNextCopy = false;
+                root.triggerAutoPaste();
+            } else if (exitCode !== 0) {
+                root.autoPasteAfterNextCopy = false;
+            }
+            if (!notify)
+                return;
             exitCode === 0 ? ToastService.showInfo("Copied to clipboard") : ToastService.showError("Failed to copy image");
         }
     }
 
     function copyTextToClipboard(text) {
-        copyRawText(text);
+        copyRawText(text, false);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -389,7 +469,9 @@ Item {
             ToastService.showError("Invalid clipboard item");
             return;
         }
-        deleteItemProc.command = ["sh", "-c", `cliphist list | grep "^${id}	" | cliphist delete`];
+        deleteItemProc.command = root.useBuiltInDmsClipboard
+                ? ["dms", "cl", "delete", String(id)]
+                : ["sh", "-c", `cliphist list | grep "^${id}	" | cliphist delete`];
         deleteItemProc.running = true;
     }
 
@@ -400,16 +482,20 @@ Item {
     }
 
     function wipeAll() {
+        wipeProc.command = root.wipeCommand();
         wipeProc.running = true;
     }
 
     Process {
         id: wipeProc
-        command: ["cliphist", "wipe"]
         onExited: _ => {
             root.clearCaches();
             root.list();
         }
+    }
+
+    function wipeCommand() {
+        return root.useBuiltInDmsClipboard ? ["dms", "cl", "clear"] : ["cliphist", "wipe"];
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -462,7 +548,7 @@ Item {
         const id = decodeQueue.shift();
         decodeRunning = true;
         textDecodeProc.clipId = id;
-        textDecodeProc.command = ["cliphist", "decode", String(id)];
+        textDecodeProc.command = root.clipboardGetTextCommand(id);
         textDecodeProc.running = true;
     }
 
@@ -500,7 +586,9 @@ Item {
         imageDecodeProc.cliphistId = cliphistId;
         imageDecodeProc.mimeType = mimeType || "image/png";
         imageDecodeProc.callback = callback;
-        imageDecodeProc.command = ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`];
+        imageDecodeProc.command = root.useBuiltInDmsClipboard
+                ? root.clipboardGetJsonCommand(cliphistId)
+                : ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`];
         imageDecodeProc.running = true;
     }
 
@@ -513,7 +601,19 @@ Item {
         onExited: exitCode => {
             if (exitCode !== 0)
                 return;
-            const base64 = String(stdout.text).trim();
+            let base64 = "";
+            let mimeType = imageDecodeProc.mimeType;
+            if (root.useBuiltInDmsClipboard) {
+                try {
+                    const entry = JSON.parse(String(stdout.text || "{}"));
+                    base64 = String(entry.data || "").trim();
+                    mimeType = String(entry.mimeType || mimeType);
+                } catch (_) {
+                    return;
+                }
+            } else {
+                base64 = String(stdout.text).trim();
+            }
             if (!base64)
                 return;
             if ((base64.length * 3) / 4 > maxPreviewImageSize)
@@ -578,7 +678,9 @@ Item {
             pinnedAt: Date.now()
         };
         decodeProc.pinnedItem = newItem;
-        decodeProc.command = item.isImage ? ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`] : ["cliphist", "decode", String(cliphistId)];
+        decodeProc.command = item.isImage
+                ? (root.useBuiltInDmsClipboard ? root.clipboardGetJsonCommand(cliphistId) : ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`])
+                : root.clipboardGetTextCommand(cliphistId);
         decodeProc.running = true;
     }
 
@@ -593,7 +695,20 @@ Item {
             }
             const item = pinnedItem;
             if (item.isImage) {
-                const base64 = String(stdout.text).trim();
+                let base64 = "";
+                let mimeType = item.mime;
+                if (root.useBuiltInDmsClipboard) {
+                    try {
+                        const entry = JSON.parse(String(stdout.text || "{}"));
+                        base64 = String(entry.data || "").trim();
+                        mimeType = String(entry.mimeType || mimeType);
+                    } catch (_) {
+                        ToastService.showError("Failed to pin image");
+                        return;
+                    }
+                } else {
+                    base64 = String(stdout.text).trim();
+                }
                 if (!base64) {
                     ToastService.showError("Failed to pin image");
                     return;
@@ -602,7 +717,8 @@ Item {
                     ToastService.showWarning("Image too large to pin (max 5MB)");
                     return;
                 }
-                item.content = "data:" + item.mime + ";base64," + base64;
+                item.mime = mimeType;
+                item.content = "data:" + mimeType + ";base64," + base64;
             } else {
                 const text = String(stdout.text);
                 if (text.length > root.maxPinnedTextMb) {
@@ -613,7 +729,7 @@ Item {
             }
             root.pinnedItems = [...root.pinnedItems, item];
             root.savePinnedFile();
-            Quickshell.execDetached(["cliphist", "delete", String(item.cliphistId)]);
+            Quickshell.execDetached(root.useBuiltInDmsClipboard ? ["dms", "cl", "delete", String(item.cliphistId)] : ["cliphist", "delete", String(item.cliphistId)]);
             root.pinnedRevision++;
             ToastService.showInfo("Item pinned");
         }
@@ -636,9 +752,9 @@ Item {
                 ToastService.showError("Failed to copy image");
                 return;
             }
-            copyRawImage(matches[1], matches[2]);
+            copyRawImage(matches[1], matches[2], false);
         } else {
-            copyRawText(item.content || "");
+            copyRawText(item.content || "", false);
         }
     }
 
@@ -895,7 +1011,7 @@ Item {
         root.todoRevision++;
         saveTodoFile();
         ToastService.showInfo("Added to ToDo");
-        Quickshell.execDetached(["wl-copy", "--", text]);
+        copyRawText(text, true);
     }
 
     function toggleTodo(todoId) {
@@ -933,7 +1049,7 @@ Item {
     function fetchTextThen(source, callback) {
         _fetchCallbacks.push(callback);
         if (source === "clipboard") {
-            fetchTextProc.command = ["wl-paste", "-n"];
+            fetchTextProc.command = root.useBuiltInDmsClipboard ? ["dms", "cl", "paste"] : ["wl-paste", "-n"];
         } else {
             // Try primary selection, fall back to clipboard
             fetchTextProc.command = ["sh", "-c", "t=$(wl-paste -p -n 2>/dev/null || true); " + "[ -z \"$t\" ] && t=$(wl-paste -n 2>/dev/null || true); printf '%s' \"$t\""];
@@ -964,26 +1080,20 @@ Item {
         fetchTextThen("selection", t => addTodoWithText(t, pageId));
     }
     function getClipboardAndAddTodoImmediate() {
-        fetchTextThen("clipboard", t => {
-            Quickshell.execDetached(["wl-copy", "--", t]);
-            addTodoWithText(t, 0);
-        });
+        fetchTextThen("clipboard", t => addTodoWithText(t, 0));
     }
     function getSelectionAndAddTodoImmediate() {
-        fetchTextThen("selection", t => {
-            Quickshell.execDetached(["wl-copy", "--", t]);
-            addTodoWithText(t, 0);
-        });
+        fetchTextThen("selection", t => addTodoWithText(t, 0));
     }
     function getClipboardAndShowNoteSelector() {
         fetchTextThen("clipboard", t => {
-            Quickshell.execDetached(["wl-copy", "--", t]);
+            copyRawText(t, true);
             showSelector("notecard", t);
         });
     }
     function getSelectionAndShowNoteSelector() {
         fetchTextThen("selection", t => {
-            Quickshell.execDetached(["wl-copy", "--", t]);
+            copyRawText(t, true);
             showSelector("notecard", t);
         });
     }
@@ -1133,6 +1243,10 @@ Item {
 
     function triggerAutoPaste() {
         autoPasteTimer.restart();
+    }
+
+    function queueAutoPasteAfterCopy() {
+        root.autoPasteAfterNextCopy = true;
     }
 
     // ══════════════════════════════════════════════════════════════════════════

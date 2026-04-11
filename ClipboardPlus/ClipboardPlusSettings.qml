@@ -186,6 +186,14 @@ PluginSettings {
 
     StyledText {
         width: parent.width
+        text: "*In order to use IPC to call the plugin, this plugin needs to be added to the bar. You can hide the icon if you don't want to see it, but it needs to be there for the plugin to work.*"
+        font.pixelSize: Theme.fontSizeSmall * 0.9
+        opacity: 0.6
+        wrapMode: Text.Wrap
+    }
+
+    StyledText {
+        width: parent.width
         text: "Configure panel behavior and features"
         font.pixelSize: Theme.fontSizeSmall
         color: Theme.surfaceVariantText
@@ -1001,6 +1009,13 @@ PluginSettings {
                 font.pixelSize: Theme.fontSizeMedium
                 font.weight: Font.Medium
                 color: Theme.surfaceText
+            }
+
+            ToggleSetting {
+                settingKey: "useBuiltInDmsClipboard"
+                label: "Use Built-in DMS Clipboard"
+                description: "Use `dms cl` for clipboard history and clipboard copy/paste instead of cliphist and wl-clipboard"
+                defaultValue: true
             }
 
             ToggleSetting {

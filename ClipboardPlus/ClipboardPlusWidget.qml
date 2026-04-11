@@ -37,6 +37,7 @@ PluginComponent {
     property bool enableAnimations: pluginData.enableAnimations !== undefined ? pluginData.enableAnimations : true
     property bool enableTabNavigation: pluginData.enableTabNavigation !== undefined ? pluginData.enableTabNavigation : true
     property bool enableFullTextDecode: pluginData.enableFullTextDecode !== undefined ? pluginData.enableFullTextDecode : false
+    property bool useBuiltInDmsClipboard: pluginData.useBuiltInDmsClipboard !== undefined ? pluginData.useBuiltInDmsClipboard : false
     property int maxDecodedTextLength: pluginData.maxDecodedTextLength !== undefined ? pluginData.maxDecodedTextLength : 250
     property string tabOrder: pluginData.tabOrder !== undefined ? pluginData.tabOrder : ""
     property string tabOrderEnabled: pluginData.tabOrderEnabled !== undefined ? pluginData.tabOrderEnabled : ""
@@ -157,6 +158,7 @@ PluginComponent {
         property bool enableTabNavigation: root.enableTabNavigation
         property bool closeOnOutsideClick: root.closeOnOutsideClick
         property bool enableFullTextDecode: root.enableFullTextDecode
+        property bool useBuiltInDmsClipboard: root.useBuiltInDmsClipboard
         property int maxDecodedTextLength: root.maxDecodedTextLength
         property string tabOrder: root.tabOrder
         property string tabOrderEnabled: root.tabOrderEnabled

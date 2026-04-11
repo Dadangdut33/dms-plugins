@@ -1839,13 +1839,13 @@ Item {
                                 const item = model[currentIndex];
                                 if (!item)
                                     return;
+                                const enterPaste = root.pluginApi?.pluginSettings?.autoPasteOnEnterSelect ?? false;
+                                if (enterPaste) {
+                                    root.pluginApi?.mainInstance?.queueAutoPasteAfterCopy();
+                                }
                                 root.pluginApi?.mainInstance?.copyPinnedToClipboard(item.id);
                                 if (root.pluginApi) {
                                     root.pluginApi.closePanel(screen);
-                                    const enterPaste = root.pluginApi?.pluginSettings?.autoPasteOnEnterSelect ?? false;
-                                    if (enterPaste) {
-                                        root.pluginApi.mainInstance?.triggerAutoPaste();
-                                    }
                                 }
                             }
                             model: root.pluginApi?.mainInstance?.pinnedItems || []
@@ -1893,14 +1893,14 @@ Item {
                                 pinnedImageDataUrl: modelData.isImage ? modelData.content : ""
 
                                 onClicked: {
+                                    const autoPaste = root.pluginApi?.pluginSettings?.autoPasteOnClick ?? false;
+                                    const rmbOnly = root.pluginApi?.pluginSettings?.autoPasteOnRightClick ?? false;
+                                    if (autoPaste && !rmbOnly) {
+                                        root.pluginApi?.mainInstance?.queueAutoPasteAfterCopy();
+                                    }
                                     root.pluginApi?.mainInstance?.copyPinnedToClipboard(modelData.id);
                                     if (root.pluginApi) {
                                         root.pluginApi.closePanel(screen);
-                                        const autoPaste = root.pluginApi.pluginSettings?.autoPasteOnClick ?? false;
-                                        const rmbOnly = root.pluginApi.pluginSettings?.autoPasteOnRightClick ?? false;
-                                        if (autoPaste && !rmbOnly) {
-                                            root.pluginApi.mainInstance?.triggerAutoPaste();
-                                        }
                                     }
                                 }
 
@@ -1908,10 +1908,10 @@ Item {
                                     const autoPaste = root.pluginApi?.pluginSettings?.autoPasteOnClick ?? false;
                                     const rmbOnly = root.pluginApi?.pluginSettings?.autoPasteOnRightClick ?? false;
                                     if (autoPaste && rmbOnly) {
+                                        root.pluginApi?.mainInstance?.queueAutoPasteAfterCopy();
                                         root.pluginApi?.mainInstance?.copyPinnedToClipboard(modelData.id);
                                         if (root.pluginApi) {
                                             root.pluginApi.closePanel(screen);
-                                            root.pluginApi.mainInstance?.triggerAutoPaste();
                                         }
                                     }
                                 }
