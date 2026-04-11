@@ -183,9 +183,6 @@ Item {
         function addClipboardToTodo() {
             root.fetchTextThen("clipboard", t => root.addTodoWithText(t, 0));
         }
-        function addSelectionToTodo() {
-            root.fetchTextThen("selection", t => root.addTodoWithText(t, 0));
-        }
 
         function addNoteCard(text: string) {
             root.createNoteCard(text || "");
@@ -199,9 +196,6 @@ Item {
 
         function addClipboardToNoteCard() {
             root.fetchTextThen("clipboard", t => root.showSelector("notecard", t));
-        }
-        function addSelectionToNoteCard() {
-            root.fetchTextThen("selection", t => root.showSelector("notecard", t));
         }
     }
 
@@ -469,9 +463,7 @@ Item {
             ToastService.showError("Invalid clipboard item");
             return;
         }
-        deleteItemProc.command = root.useBuiltInDmsClipboard
-                ? ["dms", "cl", "delete", String(id)]
-                : ["sh", "-c", `cliphist list | grep "^${id}	" | cliphist delete`];
+        deleteItemProc.command = root.useBuiltInDmsClipboard ? ["dms", "cl", "delete", String(id)] : ["sh", "-c", `cliphist list | grep "^${id}	" | cliphist delete`];
         deleteItemProc.running = true;
     }
 
@@ -586,9 +578,7 @@ Item {
         imageDecodeProc.cliphistId = cliphistId;
         imageDecodeProc.mimeType = mimeType || "image/png";
         imageDecodeProc.callback = callback;
-        imageDecodeProc.command = root.useBuiltInDmsClipboard
-                ? root.clipboardGetJsonCommand(cliphistId)
-                : ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`];
+        imageDecodeProc.command = root.useBuiltInDmsClipboard ? root.clipboardGetJsonCommand(cliphistId) : ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`];
         imageDecodeProc.running = true;
     }
 
@@ -678,9 +668,7 @@ Item {
             pinnedAt: Date.now()
         };
         decodeProc.pinnedItem = newItem;
-        decodeProc.command = item.isImage
-                ? (root.useBuiltInDmsClipboard ? root.clipboardGetJsonCommand(cliphistId) : ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`])
-                : root.clipboardGetTextCommand(cliphistId);
+        decodeProc.command = item.isImage ? (root.useBuiltInDmsClipboard ? root.clipboardGetJsonCommand(cliphistId) : ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`]) : root.clipboardGetTextCommand(cliphistId);
         decodeProc.running = true;
     }
 
@@ -1041,19 +1029,14 @@ Item {
     // ══════════════════════════════════════════════════════════════════════════
     // TEXT FETCH HELPER
     // ══════════════════════════════════════════════════════════════════════════
-    // source: "clipboard" | "selection"
+    // source: "clipboard"
     // callback: function(text) — called only on non-empty success
 
     property var _fetchCallbacks: []
 
     function fetchTextThen(source, callback) {
         _fetchCallbacks.push(callback);
-        if (source === "clipboard") {
-            fetchTextProc.command = root.useBuiltInDmsClipboard ? ["dms", "cl", "paste"] : ["wl-paste", "-n"];
-        } else {
-            // Try primary selection, fall back to clipboard
-            fetchTextProc.command = ["sh", "-c", "t=$(wl-paste -p -n 2>/dev/null || true); " + "[ -z \"$t\" ] && t=$(wl-paste -n 2>/dev/null || true); printf '%s' \"$t\""];
-        }
+        fetchTextProc.command = root.useBuiltInDmsClipboard ? ["dms", "cl", "paste"] : ["wl-paste", "-n"];
         fetchTextProc.running = true;
     }
 
@@ -1076,29 +1059,14 @@ Item {
     }
 
     // ── Convenience wrappers kept for Panel.qml call-sites ────────────────────
-    function addSelectedToPage(pageId) {
-        fetchTextThen("selection", t => addTodoWithText(t, pageId));
-    }
     function getClipboardAndAddTodoImmediate() {
         fetchTextThen("clipboard", t => addTodoWithText(t, 0));
-    }
-    function getSelectionAndAddTodoImmediate() {
-        fetchTextThen("selection", t => addTodoWithText(t, 0));
     }
     function getClipboardAndShowNoteSelector() {
         fetchTextThen("clipboard", t => {
             copyRawText(t, true);
             showSelector("notecard", t);
         });
-    }
-    function getSelectionAndShowNoteSelector() {
-        fetchTextThen("selection", t => {
-            copyRawText(t, true);
-            showSelector("notecard", t);
-        });
-    }
-    function getSelectionAndShowSelector() {
-        fetchTextThen("selection", t => showTodoPageSelector(t));
     }
 
     // ══════════════════════════════════════════════════════════════════════════
