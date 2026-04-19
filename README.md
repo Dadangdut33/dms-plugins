@@ -7,7 +7,7 @@ My own collections of DMS plugins.
 - [SimpleAudioControl](SimpleAudioControl/README.md)
 - [NetbirdStatus](NetbirdStatus/README.md)
 - [ClipBoard+](ClipboardPlus/README.md)
-- [MediaPlayerPlus](MediaPlayerPlus/README.md)
+- [MediaControlPlus](MediaControlPlus/README.md)
 
 ## Install
 

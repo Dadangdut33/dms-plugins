@@ -18,11 +18,11 @@ A simple extended version of the default media widget from DMS with mainly impro
 
 ```bash
 # Open the media player popout
-dms ipc call mediaPlayerPlus openPopout
+dms ipc call MediaControlPlus openPopout
 # Close the media player popout
-dms ipc call mediaPlayerPlus closePopout
+dms ipc call MediaControlPlus closePopout
 # Toggle the media player popout
-dms ipc call mediaPlayerPlus togglePopout
+dms ipc call MediaControlPlus togglePopout
 ```
 
 ## Some Preview

@@ -6,7 +6,7 @@ import qs.Modules.Plugins
 PluginSettings {
     id: root
 
-    pluginId: "mediaPlayerPlus"
+    pluginId: "MediaControlPlus"
 
     property int currentTab: 0
     readonly property var colorOptions: [
@@ -169,7 +169,7 @@ PluginSettings {
 
     StyledText {
         width: parent.width
-        text: "Media Player Plus Settings"
+        text: "Media Control Plus Settings"
         font.pixelSize: Theme.fontSizeLarge
         font.weight: Font.Bold
         color: Theme.surfaceText

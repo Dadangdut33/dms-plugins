@@ -10,7 +10,7 @@ import qs.Modules.Plugins
 PluginComponent {
     id: root
 
-    layerNamespacePlugin: "media-player-plus"
+    layerNamespacePlugin: "media-control-plus"
     property bool popoutVisibleState: false
 
     pillRightClickAction: () => {
@@ -171,7 +171,7 @@ PluginComponent {
     property bool showPopoutArtworkBackdrop: pluginData.showPopoutArtworkBackdrop !== undefined ? pluginData.showPopoutArtworkBackdrop : true
 
     IpcHandler {
-        target: "mediaPlayerPlus"
+        target: "MediaControlPlus"
 
         function openPopout() {
             root.ipcOpenPopout();
@@ -203,7 +203,7 @@ PluginComponent {
     }
 
     popoutContent: Component {
-        MediaPlayerPlusPopout {
+        MediaControlPlusPopout {
             activePlayer: root.activePlayer
             preferredHeight: Math.max(0, root.activePopoutHeight - Theme.spacingS * 2)
             titleMaxLines: root.popoutTitleMaxLines
@@ -393,7 +393,9 @@ PluginComponent {
                                     running: horizontalTitleText.scrollActive && horizontalTitleClip.visible
                                     loops: Animation.Infinite
 
-                                    PauseAnimation { duration: root.horizontalTitleScrollBehavior === "hover" ? 150 : 900 }
+                                    PauseAnimation {
+                                        duration: root.horizontalTitleScrollBehavior === "hover" ? 150 : 900
+                                    }
 
                                     NumberAnimation {
                                         target: horizontalTitleText
@@ -404,7 +406,9 @@ PluginComponent {
                                         easing.type: Easing.Linear
                                     }
 
-                                    PauseAnimation { duration: root.horizontalTitleScrollBehavior === "hover" ? 150 : 900 }
+                                    PauseAnimation {
+                                        duration: root.horizontalTitleScrollBehavior === "hover" ? 150 : 900
+                                    }
 
                                     NumberAnimation {
                                         target: horizontalTitleText
