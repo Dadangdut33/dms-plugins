@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import QtQuick.Layouts
 import qs.Common
 import qs.Widgets
@@ -12,11 +13,24 @@ Rectangle {
     property var note: null
     property int noteIndex: 0
     property string localColor: (note && note.color) ? note.color : "yellow"
+    property bool localPrivate: note && note.isPrivate === true
+    readonly property var currentFocusItem: Window.activeFocusItem
+    readonly property bool noteFocused: {
+        let item = currentFocusItem;
+        while (item) {
+            if (item === root)
+                return true;
+            item = item.parent;
+        }
+        return false;
+    }
+    readonly property bool privacyBlurActive: localPrivate && !noteFocused
 
     onNoteChanged: {
         if (note && note.color) {
             localColor = note.color;
         }
+        localPrivate = note && note.isPrivate === true;
     }
 
     // Color schemes
@@ -72,6 +86,12 @@ Rectangle {
     border.color: Theme.surfaceVariantText
     border.width: 1
     radius: Theme.cornerRadius
+    focus: true
+
+    TapHandler {
+        acceptedButtons: Qt.LeftButton
+        onTapped: root.forceActiveFocus()
+    }
 
     // Main layout
     ColumnLayout {
@@ -134,6 +154,7 @@ Rectangle {
                         drag.maximumY: root.parent ? (root.parent.height - root.height) : 700
 
                         onPressed: {
+                            root.forceActiveFocus();
                             if (root.pluginApi && root.pluginApi.mainInstance) {
                                 root.pluginApi.mainInstance.bringNoteToFront(root.note.id);
                             }
@@ -155,6 +176,12 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Layout.minimumWidth: 125
+                    layer.enabled: root.privacyBlurActive
+                    layer.effect: MultiEffect {
+                        blurEnabled: true
+                        blur: 0.9
+                        blurMax: 48
+                    }
 
                     TextInput {
                         id: titleInput
@@ -194,6 +221,25 @@ Rectangle {
 
                         onEditingFinished: root.scheduleSave()
                         onTextChanged: root.scheduleSave()
+                    }
+                }
+                DankActionButton {
+                    iconName: root.localPrivate ? "visibility_off" : "visibility"
+                    tooltipText: root.localPrivate ? "Disable Privacy Mode" : "Enable Privacy Mode"
+                    iconColor: {
+                        const noteColor = localColor;
+                        const scheme = colorSchemes[noteColor];
+                        return scheme ? scheme.fg : "#000000";
+                    }
+                    backgroundColor: root.localPrivate ? Qt.rgba(0, 0, 0, 0.14) : "transparent"
+
+                    onClicked: {
+                        if (root.pluginApi && root.pluginApi.mainInstance && root.note) {
+                            localPrivate = !localPrivate;
+                            root.pluginApi.mainInstance.updateNoteCard(root.note.id, {
+                                isPrivate: localPrivate
+                            });
+                        }
                     }
                 }
                 DankActionButton {
@@ -286,6 +332,7 @@ Rectangle {
 
         // Content area with ScrollView
         Item {
+            id: contentArea
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.margins: 12
@@ -294,6 +341,12 @@ Rectangle {
             ScrollView {
                 anchors.fill: parent
                 clip: true
+                layer.enabled: root.privacyBlurActive
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blur: 0.9
+                    blurMax: 48
+                }
                 ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
@@ -322,6 +375,31 @@ Rectangle {
                     }
 
                     onTextChanged: root.scheduleSave()
+                }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                color: Qt.rgba(1, 1, 1, 0.12)
+                visible: root.privacyBlurActive
+            }
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 6
+                visible: root.privacyBlurActive
+
+                DankIcon {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    name: "visibility_off"
+                    size: 20
+                    color: Qt.rgba(0, 0, 0, 0.55)
+                }
+
+                StyledText {
+                    text: "Private"
+                    font.pixelSize: 12
+                    color: Qt.rgba(0, 0, 0, 0.6)
                 }
             }
         }
@@ -443,6 +521,7 @@ Rectangle {
                 startH = root.height;
                 startX = mouse.x;
                 startY = mouse.y;
+                root.forceActiveFocus();
                 if (root.pluginApi && root.pluginApi.mainInstance) {
                     root.pluginApi.mainInstance.bringNoteToFront(root.note.id);
                 }

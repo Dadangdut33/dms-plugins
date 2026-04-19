@@ -814,6 +814,7 @@ Item {
             id: noteId,
             title: "",
             content: initialText || "",
+            isPrivate: false,
             x: 20 + offset,
             y: 80 + offset,
             width: 350,
