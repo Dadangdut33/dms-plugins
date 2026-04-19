@@ -1,0 +1,14 @@
+{
+  "id": "mediaPlayerPlus",
+  "name": "Media Player Plus",
+  "description": "A customized media widget with extended features that is mainly focused on improving vertical bar support.",
+  "version": "1.0.0",
+  "author": "Dadangdut33",
+  "icon": "music_note",
+  "type": "widget",
+  "component": "./MediaPlayerPlusWidget.qml",
+  "settings": "./MediaPlayerPlusSettings.qml",
+  "capabilities": ["dankbar-widget"],
+  "permissions": ["settings_read", "settings_write"],
+  "requires_dms": ">=1.2.0"
+}
