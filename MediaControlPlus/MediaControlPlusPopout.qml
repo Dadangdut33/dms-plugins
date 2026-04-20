@@ -20,6 +20,7 @@ PopoutComponent {
     property bool showInnerBackground: false
     property bool showArtworkBackdrop: true
     property bool isSeeking: false
+    property bool volumePanelDragging: false
     property int dropdownType: 0
     property real previousVolume: 0.5
     readonly property real sideRailWidth: 56
@@ -127,7 +128,7 @@ PopoutComponent {
     }
 
     function startVolumeCloseTimer() {
-        if (root.dropdownType === 1)
+        if (root.dropdownType === 1 && !root.volumePanelDragging)
             volumeCloseTimer.restart();
     }
 
@@ -732,10 +733,21 @@ PopoutComponent {
                             cursorShape: Qt.PointingHandCursor
                             preventStealing: true
 
-                            onPressed: mouse => updateVolume(mouse)
+                            onPressed: mouse => {
+                                root.volumePanelDragging = true;
+                                root.stopVolumeCloseTimer();
+                                updateVolume(mouse);
+                            }
                             onPositionChanged: mouse => {
                                 if (pressed)
                                     updateVolume(mouse);
+                            }
+                            onReleased: {
+                                root.volumePanelDragging = false;
+                            }
+                            onCanceled: {
+                                root.volumePanelDragging = false;
+                                root.startVolumeCloseTimer();
                             }
                             onClicked: mouse => updateVolume(mouse)
 

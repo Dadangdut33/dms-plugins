@@ -6,7 +6,7 @@ import qs.Modules.Plugins
 PluginSettings {
     id: root
 
-    pluginId: "MediaControlPlus"
+    pluginId: "mediaControlPlus"
 
     property int currentTab: 0
     readonly property var colorOptions: [
@@ -107,15 +107,15 @@ PluginSettings {
     }
 
     function refreshSettingsUi() {
-        reloadNestedSettings(root);
+        root.reloadNestedSettings(root);
         settingsTabBar.currentIndex = root.currentTab;
-        Qt.callLater(settingsTabBar.updateIndicator);
+        Qt.callLater(() => settingsTabBar.updateIndicator());
     }
 
-    Component.onCompleted: Qt.callLater(refreshSettingsUi)
+    Component.onCompleted: Qt.callLater(() => root.refreshSettingsUi())
     onVisibleChanged: {
         if (visible)
-            Qt.callLater(refreshSettingsUi);
+            Qt.callLater(() => root.refreshSettingsUi());
     }
 
     Connections {
@@ -241,6 +241,38 @@ PluginSettings {
                 label: "Right Click Opens Settings"
                 description: "Open the plugin settings page when the widget is right clicked"
                 defaultValue: true
+            }
+
+            SelectionSetting {
+                settingKey: "scrollVolumeMode"
+                label: "Scroll Volume Control"
+                description: "Choose whether mouse wheel scrolling changes the system output volume or the active app volume"
+                defaultValue: "none"
+                options: [
+                    {
+                        label: "Disabled",
+                        value: "none"
+                    },
+                    {
+                        label: "System Volume",
+                        value: "sink"
+                    },
+                    {
+                        label: "App Volume",
+                        value: "player"
+                    }
+                ]
+            }
+
+            SliderSetting {
+                settingKey: "scrollVolumeStep"
+                label: "Scroll Volume Step"
+                description: "How much volume changes on each mouse wheel step"
+                defaultValue: 2
+                minimum: 1
+                maximum: 20
+                unit: "%"
+                leftIcon: "swap_vert"
             }
         }
     }

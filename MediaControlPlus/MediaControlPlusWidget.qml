@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
 import qs.Common
@@ -27,6 +28,8 @@ PluginComponent {
     property bool showVerticalSkipControls: pluginData.showVerticalSkipControls !== undefined ? pluginData.showVerticalSkipControls : true
     property bool showVerticalPlayPause: pluginData.showVerticalPlayPause !== undefined ? pluginData.showVerticalPlayPause : true
     property bool rightClickOpensSettings: pluginData.rightClickOpensSettings !== undefined ? pluginData.rightClickOpensSettings : true
+    property string scrollVolumeMode: pluginData.scrollVolumeMode !== undefined ? pluginData.scrollVolumeMode : "none"
+    property int scrollVolumeStep: pluginData.scrollVolumeStep !== undefined ? pluginData.scrollVolumeStep : 5
     property bool showHorizontalVisualizer: pluginData.showHorizontalVisualizer !== undefined ? pluginData.showHorizontalVisualizer : (pluginData.showVisualizer !== undefined ? pluginData.showVisualizer : true)
     property bool showVerticalVisualizer: pluginData.showVerticalVisualizer !== undefined ? pluginData.showVerticalVisualizer : (pluginData.showVisualizer !== undefined ? pluginData.showVisualizer : true)
     property bool showWhenNoPlayer: pluginData.showWhenNoPlayer !== undefined ? pluginData.showWhenNoPlayer : false
@@ -62,8 +65,17 @@ PluginComponent {
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property bool playerAvailable: !!(activePlayer && (((activePlayer.trackTitle || "").length > 0) || ((activePlayer.trackArtist || "").length > 0) || activePlayer.playbackState === MprisPlaybackState.Playing))
     readonly property bool showWidget: playerAvailable || showWhenNoPlayer
+    readonly property bool isChromePlayer: {
+        if (!activePlayer?.identity)
+            return false;
+        const id = activePlayer.identity.toLowerCase();
+        return id.includes("chrome") || id.includes("chromium");
+    }
+    readonly property bool usePlayerVolume: activePlayer && activePlayer.volumeSupported && !isChromePlayer
     readonly property int iconUnit: Theme.barIconSize(root.barThickness, -4, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
     readonly property int textPixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
+    property real scrollAccumulatorY: 0
+    property real touchpadThreshold: 100
 
     function displayText() {
         if (!activePlayer) {
@@ -108,6 +120,54 @@ PluginComponent {
     function nextTrack() {
         if (activePlayer)
             activePlayer.next();
+    }
+
+    function adjustSystemVolume(delta) {
+        if (delta === 0)
+            return;
+        const command = delta > 0 ? "increment" : "decrement";
+        Quickshell.execDetached(["dms", "ipc", "call", "audio", command, String(Math.abs(delta))]);
+    }
+
+    function handleWheel(wheelEvent) {
+        if (root.scrollVolumeMode === "none")
+            return;
+
+        const deltaY = wheelEvent.angleDelta.y;
+        if (deltaY === 0)
+            return;
+
+        wheelEvent.accepted = true;
+        const step = Math.max(1, root.scrollVolumeStep || 5);
+        const isMouseWheelY = Math.abs(deltaY) >= 120 && (Math.abs(deltaY) % 120) === 0;
+
+        if (root.scrollVolumeMode === "player") {
+            if (!root.usePlayerVolume)
+                return;
+            const currentVolume = Math.round((root.activePlayer.volume || 0) * 100);
+            let newVolume = currentVolume;
+            if (isMouseWheelY) {
+                newVolume = Math.max(0, Math.min(100, currentVolume + (deltaY > 0 ? step : -step)));
+            } else {
+                scrollAccumulatorY += deltaY;
+                if (Math.abs(scrollAccumulatorY) < touchpadThreshold)
+                    return;
+                newVolume = Math.max(0, Math.min(100, currentVolume + (scrollAccumulatorY > 0 ? 1 : -1)));
+                scrollAccumulatorY = 0;
+            }
+            root.activePlayer.volume = newVolume / 100;
+            return;
+        }
+
+        if (isMouseWheelY) {
+            root.adjustSystemVolume(deltaY > 0 ? step : -step);
+        } else {
+            scrollAccumulatorY += deltaY;
+            if (Math.abs(scrollAccumulatorY) < touchpadThreshold)
+                return;
+            root.adjustSystemVolume(scrollAccumulatorY > 0 ? 1 : -1);
+            scrollAccumulatorY = 0;
+        }
     }
 
     function buttonBg(hovered, emphasized) {
@@ -171,7 +231,7 @@ PluginComponent {
     property bool showPopoutArtworkBackdrop: pluginData.showPopoutArtworkBackdrop !== undefined ? pluginData.showPopoutArtworkBackdrop : true
 
     IpcHandler {
-        target: "MediaControlPlus"
+        target: "mediaControlPlus"
 
         function openPopout() {
             root.ipcOpenPopout();
@@ -458,6 +518,16 @@ PluginComponent {
                     }
                 }
             }
+
+            MouseArea {
+                anchors.fill: parent
+                z: 999
+                acceptedButtons: Qt.NoButton
+
+                onWheel: function (wheel) {
+                    root.handleWheel(wheel);
+                }
+            }
         }
     }
 
@@ -682,6 +752,16 @@ PluginComponent {
                         cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                         onClicked: root.nextTrack()
                     }
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                z: 999
+                acceptedButtons: Qt.NoButton
+
+                onWheel: function (wheel) {
+                    root.handleWheel(wheel);
                 }
             }
         }
