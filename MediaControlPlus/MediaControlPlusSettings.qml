@@ -112,6 +112,20 @@ PluginSettings {
         Qt.callLater(() => settingsTabBar.updateIndicator());
     }
 
+    function resetVisualizerSettings(prefix) {
+        const defaults = {
+            ChannelMode: "mono",
+            ResponseCurve: 50,
+            Attack: 75,
+            Release: 35,
+            PeakHold: false,
+            PeakHoldMs: 450
+        };
+        for (const suffix in defaults)
+            root.saveValue(prefix + suffix, defaults[suffix]);
+        Qt.callLater(() => root.refreshSettingsUi());
+    }
+
     Component.onCompleted: Qt.callLater(() => root.refreshSettingsUi())
     onVisibleChanged: {
         if (visible)
@@ -416,6 +430,23 @@ PluginSettings {
             title: "Horizontal Visualizer"
             description: "Adjust the visualizer used in horizontal bars."
 
+            Row {
+                spacing: Theme.spacingS
+
+                DankActionButton {
+                    iconName: "restart_alt"
+                    tooltipText: "Reset horizontal visualizer"
+                    onClicked: root.resetVisualizerSettings("horizontalVisualizer")
+                }
+
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Reset to defaults"
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceVariantText
+                }
+            }
+
             SliderSetting {
                 settingKey: "horizontalVisualizerWidth"
                 label: "Horizontal Visualizer Width"
@@ -443,6 +474,86 @@ PluginSettings {
                 label: "Stretch Horizontal Visualizer"
                 description: "Stretch the bars to fill the configured horizontal visualizer width"
                 defaultValue: false
+            }
+
+            SelectionSetting {
+                settingKey: "horizontalVisualizerChannelMode"
+                label: "Horizontal Visualizer Channels"
+                description: "Use a single mono lane or a pseudo split layout for the horizontal visualizer"
+                defaultValue: "mono"
+                options: [
+                    {
+                        label: "Mono",
+                        value: "mono"
+                    },
+                    {
+                        label: "Pseudo Split",
+                        value: "split"
+                    },
+                    {
+                        label: "Pseudo Split Reversed",
+                        value: "splitReverse"
+                    },
+                    {
+                        label: "Center Out",
+                        value: "centerOut"
+                    },
+                    {
+                        label: "Outside In",
+                        value: "outsideIn"
+                    }
+                ]
+            }
+
+            SliderSetting {
+                settingKey: "horizontalVisualizerResponseCurve"
+                label: "Horizontal Visualizer Response"
+                description: "Shape how strongly quiet versus loud sounds affect the visualizer"
+                defaultValue: 50
+                minimum: 20
+                maximum: 120
+                unit: "%"
+                leftIcon: "show_chart"
+            }
+
+            SliderSetting {
+                settingKey: "horizontalVisualizerAttack"
+                label: "Horizontal Visualizer Attack"
+                description: "How quickly the visualizer rises when the sound gets louder"
+                defaultValue: 75
+                minimum: 5
+                maximum: 100
+                unit: "%"
+                leftIcon: "trending_up"
+            }
+
+            SliderSetting {
+                settingKey: "horizontalVisualizerRelease"
+                label: "Horizontal Visualizer Release"
+                description: "How quickly the visualizer falls when the sound gets quieter"
+                defaultValue: 35
+                minimum: 5
+                maximum: 100
+                unit: "%"
+                leftIcon: "trending_down"
+            }
+
+            ToggleSetting {
+                settingKey: "horizontalVisualizerPeakHold"
+                label: "Horizontal Peak Hold"
+                description: "Show small held peak markers above the horizontal visualizer bars"
+                defaultValue: false
+            }
+
+            SliderSetting {
+                settingKey: "horizontalVisualizerPeakHoldMs"
+                label: "Horizontal Peak Hold Time"
+                description: "How long the horizontal peak markers stay visible before falling"
+                defaultValue: 450
+                minimum: 100
+                maximum: 1200
+                unit: "ms"
+                leftIcon: "timer"
             }
         }
     }
@@ -586,6 +697,23 @@ PluginSettings {
             title: "Vertical Visualizer"
             description: "Adjust the visualizer used in vertical bars."
 
+            Row {
+                spacing: Theme.spacingS
+
+                DankActionButton {
+                    iconName: "restart_alt"
+                    tooltipText: "Reset vertical visualizer"
+                    onClicked: root.resetVisualizerSettings("verticalVisualizer")
+                }
+
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Reset to defaults"
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceVariantText
+                }
+            }
+
             SliderSetting {
                 settingKey: "verticalVisualizerWidth"
                 label: "Vertical Visualizer Height"
@@ -613,6 +741,86 @@ PluginSettings {
                 label: "Stretch Vertical Visualizer"
                 description: "Stretch the bars to fill the configured vertical visualizer height"
                 defaultValue: false
+            }
+
+            SelectionSetting {
+                settingKey: "verticalVisualizerChannelMode"
+                label: "Vertical Visualizer Channels"
+                description: "Use a single mono lane or a pseudo split layout for the vertical visualizer"
+                defaultValue: "mono"
+                options: [
+                    {
+                        label: "Mono",
+                        value: "mono"
+                    },
+                    {
+                        label: "Pseudo Split",
+                        value: "split"
+                    },
+                    {
+                        label: "Pseudo Split Reversed",
+                        value: "splitReverse"
+                    },
+                    {
+                        label: "Center Out",
+                        value: "centerOut"
+                    },
+                    {
+                        label: "Outside In",
+                        value: "outsideIn"
+                    }
+                ]
+            }
+
+            SliderSetting {
+                settingKey: "verticalVisualizerResponseCurve"
+                label: "Vertical Visualizer Response"
+                description: "Shape how strongly quiet versus loud sounds affect the visualizer"
+                defaultValue: 50
+                minimum: 20
+                maximum: 120
+                unit: "%"
+                leftIcon: "show_chart"
+            }
+
+            SliderSetting {
+                settingKey: "verticalVisualizerAttack"
+                label: "Vertical Visualizer Attack"
+                description: "How quickly the visualizer rises when the sound gets louder"
+                defaultValue: 75
+                minimum: 5
+                maximum: 100
+                unit: "%"
+                leftIcon: "trending_up"
+            }
+
+            SliderSetting {
+                settingKey: "verticalVisualizerRelease"
+                label: "Vertical Visualizer Release"
+                description: "How quickly the visualizer falls when the sound gets quieter"
+                defaultValue: 35
+                minimum: 5
+                maximum: 100
+                unit: "%"
+                leftIcon: "trending_down"
+            }
+
+            ToggleSetting {
+                settingKey: "verticalVisualizerPeakHold"
+                label: "Vertical Peak Hold"
+                description: "Show small held peak markers above the vertical visualizer bars"
+                defaultValue: false
+            }
+
+            SliderSetting {
+                settingKey: "verticalVisualizerPeakHoldMs"
+                label: "Vertical Peak Hold Time"
+                description: "How long the vertical peak markers stay visible before falling"
+                defaultValue: 450
+                minimum: 100
+                maximum: 1200
+                unit: "ms"
+                leftIcon: "timer"
             }
         }
     }

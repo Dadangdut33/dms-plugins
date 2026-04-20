@@ -42,9 +42,21 @@ PluginComponent {
     property int horizontalVisualizerWidth: pluginData.horizontalVisualizerWidth !== undefined ? pluginData.horizontalVisualizerWidth : (pluginData.visualizerWidth !== undefined ? pluginData.visualizerWidth : 20)
     property int horizontalVisualizerBars: pluginData.horizontalVisualizerBars !== undefined ? pluginData.horizontalVisualizerBars : (pluginData.visualizerBars !== undefined ? pluginData.visualizerBars : 6)
     property bool horizontalVisualizerStretchToWidth: pluginData.horizontalVisualizerStretchToWidth !== undefined ? pluginData.horizontalVisualizerStretchToWidth : (pluginData.visualizerStretchToWidth !== undefined ? pluginData.visualizerStretchToWidth : false)
+    property string horizontalVisualizerChannelMode: pluginData.horizontalVisualizerChannelMode !== undefined ? pluginData.horizontalVisualizerChannelMode : "mono"
+    property real horizontalVisualizerResponseCurve: pluginData.horizontalVisualizerResponseCurve !== undefined ? Number(pluginData.horizontalVisualizerResponseCurve) / 100.0 : 0.5
+    property real horizontalVisualizerAttack: pluginData.horizontalVisualizerAttack !== undefined ? Number(pluginData.horizontalVisualizerAttack) / 100.0 : 0.75
+    property real horizontalVisualizerRelease: pluginData.horizontalVisualizerRelease !== undefined ? Number(pluginData.horizontalVisualizerRelease) / 100.0 : 0.35
+    property bool horizontalVisualizerPeakHold: pluginData.horizontalVisualizerPeakHold !== undefined ? pluginData.horizontalVisualizerPeakHold : false
+    property int horizontalVisualizerPeakHoldMs: pluginData.horizontalVisualizerPeakHoldMs !== undefined ? pluginData.horizontalVisualizerPeakHoldMs : 450
     property int verticalVisualizerWidth: pluginData.verticalVisualizerWidth !== undefined ? pluginData.verticalVisualizerWidth : (pluginData.visualizerWidth !== undefined ? pluginData.visualizerWidth : 20)
     property int verticalVisualizerBars: pluginData.verticalVisualizerBars !== undefined ? pluginData.verticalVisualizerBars : (pluginData.visualizerBars !== undefined ? pluginData.visualizerBars : 6)
     property bool verticalVisualizerStretchToWidth: pluginData.verticalVisualizerStretchToWidth !== undefined ? pluginData.verticalVisualizerStretchToWidth : (pluginData.visualizerStretchToWidth !== undefined ? pluginData.visualizerStretchToWidth : false)
+    property string verticalVisualizerChannelMode: pluginData.verticalVisualizerChannelMode !== undefined ? pluginData.verticalVisualizerChannelMode : "mono"
+    property real verticalVisualizerResponseCurve: pluginData.verticalVisualizerResponseCurve !== undefined ? Number(pluginData.verticalVisualizerResponseCurve) / 100.0 : 0.5
+    property real verticalVisualizerAttack: pluginData.verticalVisualizerAttack !== undefined ? Number(pluginData.verticalVisualizerAttack) / 100.0 : 0.75
+    property real verticalVisualizerRelease: pluginData.verticalVisualizerRelease !== undefined ? Number(pluginData.verticalVisualizerRelease) / 100.0 : 0.35
+    property bool verticalVisualizerPeakHold: pluginData.verticalVisualizerPeakHold !== undefined ? pluginData.verticalVisualizerPeakHold : false
+    property int verticalVisualizerPeakHoldMs: pluginData.verticalVisualizerPeakHoldMs !== undefined ? pluginData.verticalVisualizerPeakHoldMs : 450
     property string horizontalTitleScrollBehavior: pluginData.horizontalTitleScrollBehavior !== undefined ? pluginData.horizontalTitleScrollBehavior : "never"
     property int horizontalTitleScrollSpeed: pluginData.horizontalTitleScrollSpeed !== undefined ? pluginData.horizontalTitleScrollSpeed : 28
     property string verticalTitleScrollBehavior: pluginData.verticalTitleScrollBehavior !== undefined ? pluginData.verticalTitleScrollBehavior : ((pluginData.scrollVerticalTitle !== undefined && pluginData.scrollVerticalTitle) ? "always" : "never")
@@ -373,6 +385,12 @@ PluginComponent {
                             barSpan: root.horizontalVisualizerWidth
                             barCount: root.horizontalVisualizerBars
                             stretchToWidth: root.horizontalVisualizerStretchToWidth
+                            channelMode: root.horizontalVisualizerChannelMode
+                            responseCurve: root.horizontalVisualizerResponseCurve
+                            attackSmoothing: root.horizontalVisualizerAttack
+                            releaseSmoothing: root.horizontalVisualizerRelease
+                            peakHoldEnabled: root.horizontalVisualizerPeakHold
+                            peakHoldMs: root.horizontalVisualizerPeakHoldMs
                             visible: root.playerAvailable
                         }
 
@@ -557,6 +575,12 @@ PluginComponent {
                         barSpan: root.verticalVisualizerWidth
                         barCount: root.verticalVisualizerBars
                         stretchToWidth: root.verticalVisualizerStretchToWidth
+                        channelMode: root.verticalVisualizerChannelMode
+                        responseCurve: root.verticalVisualizerResponseCurve
+                        attackSmoothing: root.verticalVisualizerAttack
+                        releaseSmoothing: root.verticalVisualizerRelease
+                        peakHoldEnabled: root.verticalVisualizerPeakHold
+                        peakHoldMs: root.verticalVisualizerPeakHoldMs
                         verticalMode: true
                         visible: root.playerAvailable && root.showVerticalVisualizer
                     }

@@ -2,7 +2,7 @@
   "id": "mediaControlPlus",
   "name": "Media Control Plus",
   "description": "A customized media widget with extended features that is mainly focused on improving vertical bar support.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Dadangdut33",
   "icon": "music_note",
   "type": "widget",

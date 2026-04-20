@@ -9,6 +9,7 @@ A simple extended version of the default media widget from DMS with mainly impro
   - Can set max height for title area in vertical layout
   - Can show next/previous buttons in vertical layout
 - Rotated visualizer for vertical layout
+- Visualizer settings for both horizontal and vertical layouts
 - Settings for visualizer bar count and width / height
 - Optional popout size settings for both the horizontal and vertical layouts
 - Optional extra backdrop panel behind the media content
