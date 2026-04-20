@@ -5,6 +5,7 @@ import Quickshell.Io
 import QtQuick.Layouts
 import Quickshell
 import qs.Common
+import qs.Modals.Common
 import qs.Widgets
 import qs.Services
 
@@ -59,11 +60,20 @@ Item {
     opacity: animationsEnabled ? openProgress : 1
     scale: animationsEnabled ? (0.98 + 0.02 * openProgress) : 1
 
+    ConfirmModal {
+        id: clearConfirmDialog
+        confirmButtonText: "Clear All"
+        confirmButtonColor: Theme.primary
+        useOverlayLayer: true
+        allowStacking: true
+    }
+
     // Screen context - store reference for child components
     property var currentScreen: screen
 
     // Track currently open ToDo context menu
     property var activeContextMenu: null
+    property var confirmDialog: clearConfirmDialog
 
     // Refresh clipboard list and load notecards when panel becomes visible
     // Save notecards when panel is closed
@@ -1503,7 +1513,11 @@ Item {
                         iconName: "delete"
                         Layout.alignment: Qt.AlignVCenter
                         Layout.topMargin: -2 * 1
-                        onClicked: pluginApi?.mainInstance?.wipeAll()
+                        onClicked: {
+                            clearConfirmDialog.show("Clear Clipboard History?", "This will remove all non-pinned clipboard history items. This action cannot be undone.", function () {
+                                pluginApi?.mainInstance?.wipeAll();
+                            }, function () {});
+                        }
                     }
                 } // End header RowLayout
 
