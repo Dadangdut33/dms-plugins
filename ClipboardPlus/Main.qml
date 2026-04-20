@@ -61,7 +61,7 @@ Item {
     readonly property int maxPinnedTextMb: Math.max(1, Math.floor(pluginApi?.pluginSettings?.maxPinnedTextMb ?? 1)) * 1024 * 1024
     readonly property int maxPinnedImageMb: Math.max(5, Math.floor(pluginApi?.pluginSettings?.maxPinnedImageMb ?? 5)) * 1024 * 1024
     readonly property int maxPreviewImageSize: maxPinnedImageMb
-    readonly property bool useBuiltInDmsClipboard: pluginApi?.pluginSettings?.useBuiltInDmsClipboard ?? false
+    readonly property bool useBuiltInDmsClipboard: pluginApi?.pluginSettings?.useDmsClipboard ?? (pluginApi?.pluginSettings?.useBuiltInDmsClipboard ?? false)
 
     // ── Paths ──────────────────────────────────────────────────────────────────
     readonly property string defaultConfigRoot: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/dms-clipboardPlus"
@@ -86,6 +86,8 @@ Item {
         watchChanges: true
         printErrors: false
         onLoaded: {
+            if (root.useBuiltInDmsClipboard)
+                return;
             try {
                 const data = JSON.parse(text());
                 root.pinnedItems = data.items || [];
@@ -95,6 +97,8 @@ Item {
             root.pinnedRevision++;
         }
         onLoadFailed: {
+            if (root.useBuiltInDmsClipboard)
+                return;
             root.pinnedItems = [];
             root.pinnedRevision++;
         }
@@ -231,6 +235,33 @@ Item {
         return ["dms", "cl", "get", String(id), "--json"];
     }
 
+    function requestBuiltInClipboardEntry(id, onSuccess, onFailure) {
+        const numericId = Number(id);
+        if (!Number.isFinite(numericId) || numericId <= 0) {
+            onFailure?.();
+            return;
+        }
+        DMSService.sendRequest("clipboard.getEntry", {
+            id: numericId
+        }, function (response) {
+            if (response?.error || !response?.result) {
+                onFailure?.(response?.error || "Failed to get clipboard entry");
+                return;
+            }
+            onSuccess?.(response.result);
+        });
+    }
+
+    function requestBuiltInClipboardHistory(onSuccess, onFailure) {
+        DMSService.sendRequest("clipboard.getHistory", null, function (response) {
+            if (response?.error || !Array.isArray(response?.result)) {
+                onFailure?.(response?.error || "Failed to get clipboard history");
+                return;
+            }
+            onSuccess?.(response.result);
+        });
+    }
+
     function parseHistoryItems(output) {
         if (!root.useBuiltInDmsClipboard) {
             const lines = String(output || "").split("\n").filter(l => l.length > 0);
@@ -266,7 +297,8 @@ Item {
                     id,
                     preview,
                     isImage,
-                    mime
+                    mime,
+                    pinned: false
                 };
             });
         }
@@ -289,9 +321,45 @@ Item {
                 id,
                 preview,
                 isImage,
-                mime
+                mime,
+                pinned: Boolean(entry.pinned)
             };
         }).filter(entry => entry.id.length > 0);
+    }
+
+    function parseBuiltInHistoryEntries(entries) {
+        return (Array.isArray(entries) ? entries : []).map(entry => {
+            const id = String(entry.id ?? "");
+            const preview = String(entry.preview ?? "");
+            const mime = String(entry.mimeType || "text/plain");
+            const isImage = Boolean(entry.isImage) || mime.startsWith("image/");
+            if (id && !root.firstSeenById[id])
+                root.firstSeenById[id] = Date.now();
+            return {
+                id,
+                preview,
+                isImage,
+                mime,
+                pinned: Boolean(entry.pinned)
+            };
+        }).filter(entry => entry.id.length > 0);
+    }
+
+    function syncBuiltInPinnedItems() {
+        if (!root.useBuiltInDmsClipboard)
+            return;
+        root.pinnedItems = root.items.filter(item => item.pinned).map(item => {
+            return {
+                id: item.id,
+                cliphistId: item.id,
+                content: "",
+                preview: item.preview,
+                mime: item.mime || "text/plain",
+                isImage: item.isImage || false,
+                pinnedAt: Date.now()
+            };
+        });
+        root.pinnedRevision++;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -299,11 +367,25 @@ Item {
     // ══════════════════════════════════════════════════════════════════════════
 
     function list(maxPreviewWidth) {
-        if (listProc.running)
-            return;
         root.loading = true;
         const width = (maxPreviewWidth !== undefined && maxPreviewWidth !== null) ? maxPreviewWidth : root.previewWidth;
         root.previewWidth = width;
+        if (root.useBuiltInDmsClipboard) {
+            root.requestBuiltInClipboardHistory(function (entries) {
+                root.items = root.parseBuiltInHistoryEntries(entries);
+                root.syncBuiltInPinnedItems();
+                root.loading = false;
+                if (root.items.length > 0)
+                    root.lastClipboardId = root.items[0].id;
+            }, function () {
+                root.items = [];
+                root.syncBuiltInPinnedItems();
+                root.loading = false;
+            });
+            return;
+        }
+        if (listProc.running)
+            return;
         listProc.command = root.clipboardHistoryCommand(width);
         listProc.running = true;
     }
@@ -318,6 +400,7 @@ Item {
                 return;
             }
             root.items = root.parseHistoryItems(stdout.text);
+            root.syncBuiltInPinnedItems();
             root.loading = false;
             if (root.items.length > 0) {
                 root.lastClipboardId = root.items[0].id;
@@ -334,6 +417,18 @@ Item {
         repeat: true
         running: root.panelVisible && (pluginApi?.pluginSettings?.listenClipboardWhileOpen ?? false)
         onTriggered: {
+            if (root.useBuiltInDmsClipboard) {
+                root.requestBuiltInClipboardHistory(function (entries) {
+                    const builtInItems = root.parseBuiltInHistoryEntries(entries);
+                    const id = builtInItems.length > 0 ? builtInItems[0].id : "";
+                    if (id && id !== root.lastClipboardId) {
+                        root.items = builtInItems;
+                        root.syncBuiltInPinnedItems();
+                        root.lastClipboardId = id;
+                    }
+                });
+                return;
+            }
             if (!clipboardPollProc.running) {
                 clipboardPollProc.command = root.clipboardHeadCommand();
                 clipboardPollProc.running = true;
@@ -356,6 +451,20 @@ Item {
         }
     }
 
+    Connections {
+        target: DMSService
+        enabled: root.useBuiltInDmsClipboard
+
+        function onClipboardStateUpdate(data) {
+            const builtInItems = root.parseBuiltInHistoryEntries(data?.history || []);
+            root.items = builtInItems;
+            root.syncBuiltInPinnedItems();
+            root.loading = false;
+            if (builtInItems.length > 0)
+                root.lastClipboardId = builtInItems[0].id;
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     // COPY TO CLIPBOARD
     // ══════════════════════════════════════════════════════════════════════════
@@ -367,7 +476,26 @@ Item {
             return;
         }
         if (root.useBuiltInDmsClipboard) {
-            copyDecodeProc.command = ["dms", "cl", "get", String(id), "--copy"];
+            root.requestBuiltInClipboardEntry(id, function (_) {
+                DMSService.sendRequest("clipboard.copyEntry", {
+                    id: Number(id)
+                }, function (response) {
+                    if (response?.error) {
+                        ToastService.showError("Failed to copy");
+                        root.autoPasteAfterNextCopy = false;
+                        return;
+                    }
+                    if (root.autoPasteAfterNextCopy) {
+                        root.autoPasteAfterNextCopy = false;
+                        root.triggerAutoPaste();
+                    }
+                    ToastService.showInfo("Copied to clipboard");
+                });
+            }, function () {
+                ToastService.showError("Failed to copy");
+                root.autoPasteAfterNextCopy = false;
+            });
+            return;
         } else {
             copyDecodeProc.command = ["sh", "-c", `cliphist decode ${id} | wl-copy`];
         }
@@ -463,7 +591,19 @@ Item {
             ToastService.showError("Invalid clipboard item");
             return;
         }
-        deleteItemProc.command = root.useBuiltInDmsClipboard ? ["dms", "cl", "delete", String(id)] : ["sh", "-c", `cliphist list | grep "^${id}	" | cliphist delete`];
+        if (root.useBuiltInDmsClipboard) {
+            DMSService.sendRequest("clipboard.deleteEntry", {
+                id: Number(id)
+            }, function (response) {
+                if (response?.error) {
+                    ToastService.showError("Failed to delete item");
+                    return;
+                }
+                root.list();
+            });
+            return;
+        }
+        deleteItemProc.command = ["sh", "-c", `cliphist list | grep "^${id}	" | cliphist delete`];
         deleteItemProc.running = true;
     }
 
@@ -474,6 +614,17 @@ Item {
     }
 
     function wipeAll() {
+        if (root.useBuiltInDmsClipboard) {
+            DMSService.sendRequest("clipboard.clearHistory", null, function (response) {
+                if (response?.error) {
+                    ToastService.showError("Failed to clear history");
+                    return;
+                }
+                root.clearCaches();
+                root.list();
+            });
+            return;
+        }
         wipeProc.command = root.wipeCommand();
         wipeProc.running = true;
     }
@@ -575,10 +726,24 @@ Item {
             callback?.(root.imageCache[cliphistId]);
             return;
         }
+        if (root.useBuiltInDmsClipboard) {
+            root.requestBuiltInClipboardEntry(cliphistId, function (entry) {
+                const base64 = String(entry.data || "").trim();
+                const resolvedMimeType = String(entry.mimeType || mimeType || "image/png");
+                if (!base64)
+                    return;
+                if ((base64.length * 3) / 4 > maxPreviewImageSize)
+                    return;
+                const dataUrl = "data:" + resolvedMimeType + ";base64," + base64;
+                root.addToImageCache(cliphistId, dataUrl);
+                callback?.(dataUrl);
+            });
+            return;
+        }
         imageDecodeProc.cliphistId = cliphistId;
         imageDecodeProc.mimeType = mimeType || "image/png";
         imageDecodeProc.callback = callback;
-        imageDecodeProc.command = root.useBuiltInDmsClipboard ? root.clipboardGetJsonCommand(cliphistId) : ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`];
+        imageDecodeProc.command = ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`];
         imageDecodeProc.running = true;
     }
 
@@ -648,6 +813,30 @@ Item {
             ToastService.showError("Invalid clipboard item");
             return;
         }
+        if (root.useBuiltInDmsClipboard) {
+            DMSService.sendRequest("clipboard.getPinnedCount", null, function (countResponse) {
+                if (countResponse?.error) {
+                    ToastService.showError("Failed to check pin limit");
+                    return;
+                }
+                const count = Number(countResponse?.result?.count ?? 0);
+                if (count >= maxPinnedItems) {
+                    ToastService.showWarning(("Maximum {max} pinned items reached").replace("{max}", maxPinnedItems));
+                    return;
+                }
+                DMSService.sendRequest("clipboard.pinEntry", {
+                    id: Number(cliphistId)
+                }, function (response) {
+                    if (response?.error) {
+                        ToastService.showError("Failed to pin item");
+                        return;
+                    }
+                    root.list();
+                    ToastService.showInfo("Item pinned");
+                });
+            });
+            return;
+        }
         if (root.pinnedItems.length >= maxPinnedItems) {
             ToastService.showWarning(("Maximum {max} pinned items reached").replace("{max}", maxPinnedItems));
             return;
@@ -667,8 +856,32 @@ Item {
             isImage: item.isImage || false,
             pinnedAt: Date.now()
         };
+        if (item.isImage && root.useBuiltInDmsClipboard) {
+            root.requestBuiltInClipboardEntry(cliphistId, function (entry) {
+                const base64 = String(entry.data || "").trim();
+                const mimeType = String(entry.mimeType || newItem.mime || "image/png");
+                if (!base64) {
+                    ToastService.showError("Failed to pin image");
+                    return;
+                }
+                if ((base64.length * 3) / 4 > root.maxPinnedImageMb) {
+                    ToastService.showWarning("Image too large to pin (max 5MB)");
+                    return;
+                }
+                newItem.mime = mimeType;
+                newItem.content = "data:" + mimeType + ";base64," + base64;
+                root.pinnedItems = [...root.pinnedItems, newItem];
+                root.savePinnedFile();
+                Quickshell.execDetached(["dms", "cl", "delete", String(newItem.cliphistId)]);
+                root.pinnedRevision++;
+                ToastService.showInfo("Item pinned");
+            }, function () {
+                ToastService.showError("Failed to pin image");
+            });
+            return;
+        }
         decodeProc.pinnedItem = newItem;
-        decodeProc.command = item.isImage ? (root.useBuiltInDmsClipboard ? root.clipboardGetJsonCommand(cliphistId) : ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`]) : root.clipboardGetTextCommand(cliphistId);
+        decodeProc.command = item.isImage ? ["sh", "-c", `cliphist decode ${cliphistId} | base64 -w 0`] : root.clipboardGetTextCommand(cliphistId);
         decodeProc.running = true;
     }
 
@@ -685,18 +898,7 @@ Item {
             if (item.isImage) {
                 let base64 = "";
                 let mimeType = item.mime;
-                if (root.useBuiltInDmsClipboard) {
-                    try {
-                        const entry = JSON.parse(String(stdout.text || "{}"));
-                        base64 = String(entry.data || "").trim();
-                        mimeType = String(entry.mimeType || mimeType);
-                    } catch (_) {
-                        ToastService.showError("Failed to pin image");
-                        return;
-                    }
-                } else {
-                    base64 = String(stdout.text).trim();
-                }
+                base64 = String(stdout.text).trim();
                 if (!base64) {
                     ToastService.showError("Failed to pin image");
                     return;
@@ -724,6 +926,47 @@ Item {
     }
 
     function unpinItem(pinnedId) {
+        if (root.useBuiltInDmsClipboard) {
+            if (!pinnedId || !/^\d+$/.test(String(pinnedId))) {
+                ToastService.showError("Invalid pinned item");
+                return;
+            }
+            DMSService.sendRequest("clipboard.unpinEntry", {
+                id: Number(pinnedId)
+            }, function (response) {
+                if (response?.error) {
+                    ToastService.showError("Failed to unpin item");
+                    return;
+                }
+                root.list();
+                ToastService.showInfo("Item unpinned");
+            });
+            return;
+        }
+        root.pinnedItems = root.pinnedItems.filter(i => i.id !== pinnedId);
+        root.savePinnedFile();
+        root.pinnedRevision++;
+        ToastService.showInfo("Item unpinned");
+    }
+
+    function deletePinnedItem(pinnedId) {
+        if (root.useBuiltInDmsClipboard) {
+            if (!pinnedId || !/^\d+$/.test(String(pinnedId))) {
+                ToastService.showError("Invalid pinned item");
+                return;
+            }
+            DMSService.sendRequest("clipboard.deleteEntry", {
+                id: Number(pinnedId)
+            }, function (response) {
+                if (response?.error) {
+                    ToastService.showError("Failed to delete pinned item");
+                    return;
+                }
+                root.list();
+                ToastService.showInfo("Pinned item deleted");
+            });
+            return;
+        }
         root.pinnedItems = root.pinnedItems.filter(i => i.id !== pinnedId);
         root.savePinnedFile();
         root.pinnedRevision++;

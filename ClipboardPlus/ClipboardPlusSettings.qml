@@ -1012,9 +1012,9 @@ PluginSettings {
             }
 
             ToggleSetting {
-                settingKey: "useBuiltInDmsClipboard"
+                settingKey: "useDmsClipboard"
                 label: "Use Built-in DMS Clipboard"
-                description: "Use `dms cl` for clipboard history and clipboard copy/paste instead of cliphist and wl-clipboard"
+                description: "Use `DMSService` for getting clipboard history and clipboard copy/paste instead of cliphist and wl-clipboard."
                 defaultValue: true
             }
 

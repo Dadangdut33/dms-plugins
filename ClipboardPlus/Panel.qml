@@ -1922,7 +1922,7 @@ Item {
                                 }
 
                                 onDeleteClicked: {
-                                    root.pluginApi?.mainInstance?.unpinItem(modelData.id);
+                                    root.pluginApi?.mainInstance?.deletePinnedItem(modelData.id);
                                 }
                             }
 
