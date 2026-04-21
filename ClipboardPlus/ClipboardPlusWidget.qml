@@ -19,8 +19,10 @@ PluginComponent {
     property bool fullscreenMode: pluginData.fullscreenMode !== undefined ? pluginData.fullscreenMode : true
     property int panelWidth: pluginData.panelWidth !== undefined ? pluginData.panelWidth : 1450
     property int panelHeight: pluginData.panelHeight !== undefined ? pluginData.panelHeight : 760
-    property int panelMarginX: pluginData.panelMarginX !== undefined ? pluginData.panelMarginX : 0
-    property int panelMarginY: pluginData.panelMarginY !== undefined ? pluginData.panelMarginY : 0
+    property int panelMarginLeft: pluginData.panelMarginLeft !== undefined ? pluginData.panelMarginLeft : (pluginData.panelMarginX !== undefined ? pluginData.panelMarginX : 0)
+    property int panelMarginRight: pluginData.panelMarginRight !== undefined ? pluginData.panelMarginRight : (pluginData.panelMarginX !== undefined ? pluginData.panelMarginX : 0)
+    property int panelMarginTop: pluginData.panelMarginTop !== undefined ? pluginData.panelMarginTop : (pluginData.panelMarginY !== undefined ? pluginData.panelMarginY : 0)
+    property int panelMarginBottom: pluginData.panelMarginBottom !== undefined ? pluginData.panelMarginBottom : (pluginData.panelMarginY !== undefined ? pluginData.panelMarginY : 0)
     property int noteCardScale: pluginData.noteCardScale !== undefined ? pluginData.noteCardScale : 100
     property bool hidePanelBackground: pluginData.hidePanelBackground !== undefined ? pluginData.hidePanelBackground : false
     property bool showBarWidget: pluginData.showBarWidget !== undefined ? pluginData.showBarWidget : true
@@ -147,8 +149,10 @@ PluginComponent {
         property bool fullscreenMode: root.fullscreenMode
         property int panelWidth: root.panelWidth
         property int panelHeight: root.panelHeight
-        property int panelMarginX: root.panelMarginX
-        property int panelMarginY: root.panelMarginY
+        property int panelMarginLeft: root.panelMarginLeft
+        property int panelMarginRight: root.panelMarginRight
+        property int panelMarginTop: root.panelMarginTop
+        property int panelMarginBottom: root.panelMarginBottom
         property int noteCardScale: root.noteCardScale
         property bool hidePanelBackground: root.hidePanelBackground
         property string dataBasePath: root.dataBasePath

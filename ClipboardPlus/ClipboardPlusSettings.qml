@@ -102,6 +102,111 @@ PluginSettings {
         }
     }
 
+    component CompactMarginSetting: Item {
+        id: compactSetting
+        property string settingKey: ""
+        property string label: ""
+        property string description: ""
+        property string leftIcon: ""
+        property int defaultValue: 0
+        property int minimum: 0
+        property int maximum: 100
+
+        implicitWidth: column.implicitWidth
+        implicitHeight: column.implicitHeight
+
+        function loadValue() {
+            slider.value = root.loadValue(settingKey, defaultValue);
+        }
+
+        Column {
+            id: column
+            width: parent.width
+            spacing: Theme.spacingXS
+
+            StyledText {
+                width: parent.width
+                text: compactSetting.label
+                font.pixelSize: Theme.fontSizeMedium
+                font.weight: Font.Medium
+                color: Theme.surfaceText
+                wrapMode: Text.WordWrap
+            }
+
+            StyledText {
+                width: parent.width
+                text: compactSetting.description
+                font.pixelSize: Theme.fontSizeSmall
+                color: Theme.surfaceVariantText
+                wrapMode: Text.WordWrap
+                visible: text.length > 0
+            }
+
+            Row {
+                width: parent.width
+                spacing: Theme.spacingS
+
+                DankIcon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: compactSetting.leftIcon
+                    size: 16
+                    color: Theme.surfaceText
+                }
+
+                Slider {
+                    id: slider
+                    width: parent.width - valueText.width - Theme.spacingS * 2 - 16
+                    from: compactSetting.minimum
+                    to: compactSetting.maximum
+                    stepSize: 1
+                    value: compactSetting.defaultValue
+
+                    onMoved: root.saveValue(compactSetting.settingKey, Math.round(value))
+                    onValueChanged: valueText.text = Math.round(value) + "px"
+
+                    background: Rectangle {
+                        x: slider.leftPadding
+                        y: slider.topPadding + slider.availableHeight / 2 - height / 2
+                        width: slider.availableWidth
+                        height: 6
+                        radius: 3
+                        color: Theme.surfaceContainerHighest
+
+                        Rectangle {
+                            width: slider.visualPosition * parent.width
+                            height: parent.height
+                            radius: parent.radius
+                            color: Theme.primary
+                        }
+                    }
+
+                    handle: Rectangle {
+                        x: slider.leftPadding + slider.visualPosition * (slider.availableWidth - width)
+                        y: slider.topPadding + slider.availableHeight / 2 - height / 2
+                        width: 14
+                        height: 14
+                        radius: 7
+                        color: Theme.primary
+                        border.width: 2
+                        border.color: Theme.surface
+                    }
+                }
+
+                StyledText {
+                    id: valueText
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 44
+                    horizontalAlignment: Text.AlignRight
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceText
+                    text: Math.round(slider.value) + "px"
+                }
+            }
+        }
+
+        Component.onCompleted: loadValue()
+    }
+
     ListModel {
         id: tabOrderModel
     }
@@ -235,7 +340,7 @@ PluginSettings {
 
         DankTabBar {
             id: settingsTabBar
-            width: Math.min(parent.width, 420)
+            width: Math.min(parent.width, 560)
             height: 45
             anchors.horizontalCenter: parent.horizontalCenter
             model: [
@@ -248,6 +353,10 @@ PluginSettings {
                     "icon": "widgets"
                 },
                 {
+                    "text": "Clipboard",
+                    "icon": "content_paste"
+                },
+                {
                     "text": "Data",
                     "icon": "folder"
                 }
@@ -258,6 +367,29 @@ PluginSettings {
             onTabClicked: index => {
                 root.currentTab = index;
                 currentIndex = index;
+            }
+        }
+    }
+
+    // ── Bar Widget options ──
+    StyledRect {
+        visible: root.currentTab === 0
+        width: parent.width
+        height: barColumn.implicitHeight + Theme.spacingL * 2
+        radius: Theme.cornerRadius
+        color: Theme.surfaceContainerHigh
+
+        Column {
+            id: barColumn
+            anchors.fill: parent
+            anchors.margins: Theme.spacingL
+            spacing: Theme.spacingM
+
+            ToggleSetting {
+                settingKey: "showBarWidget"
+                label: "Show Bar Widget"
+                description: "Display the ClipBoard+ icon in the bar"
+                defaultValue: true
             }
         }
     }
@@ -295,9 +427,9 @@ PluginSettings {
                 settingKey: "panelWidth"
                 label: "Panel Width"
                 description: "Manual width for the panel when fullscreen mode is disabled"
-                defaultValue: 1450
+                defaultValue: 1600
                 minimum: 500
-                maximum: 2200
+                maximum: 7680
                 unit: "px"
                 leftIcon: "width"
                 visible: !fullscreenModeToggle.value
@@ -307,34 +439,70 @@ PluginSettings {
                 settingKey: "panelHeight"
                 label: "Panel Height"
                 description: "Manual height for the panel when fullscreen mode is disabled"
-                defaultValue: 760
+                defaultValue: 800
                 minimum: 320
-                maximum: 1400
+                maximum: 4320
                 unit: "px"
                 leftIcon: "height"
                 visible: !fullscreenModeToggle.value
             }
 
-            SliderSetting {
-                settingKey: "panelMarginX"
-                label: "Horizontal Margin"
-                description: "Reserve space on the left and right side of the screen before sizing the panel"
-                defaultValue: 0
-                minimum: 0
-                maximum: 240
-                unit: "px"
-                leftIcon: "swap_horiz"
+            RowLayout {
+                width: parent.width
+                spacing: Theme.spacingM
+
+                CompactMarginSetting {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: (parent.width - Theme.spacingM) / 2
+                    settingKey: "panelMarginLeft"
+                    label: "Left Margin"
+                    description: "Left side inset"
+                    defaultValue: 0
+                    minimum: 0
+                    maximum: 800
+                    leftIcon: "west"
+                }
+
+                CompactMarginSetting {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: (parent.width - Theme.spacingM) / 2
+                    settingKey: "panelMarginRight"
+                    label: "Right Margin"
+                    description: "Right side inset"
+                    defaultValue: 0
+                    minimum: 0
+                    maximum: 800
+                    leftIcon: "east"
+                }
             }
 
-            SliderSetting {
-                settingKey: "panelMarginY"
-                label: "Vertical Margin"
-                description: "Reserve space on the top and bottom of the screen before sizing the panel"
-                defaultValue: 0
-                minimum: 0
-                maximum: 180
-                unit: "px"
-                leftIcon: "swap_vert"
+            RowLayout {
+                width: parent.width
+                spacing: Theme.spacingM
+
+                CompactMarginSetting {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: (parent.width - Theme.spacingM) / 2
+                    settingKey: "panelMarginTop"
+                    label: "Top Margin"
+                    description: "Top side inset"
+                    defaultValue: 0
+                    minimum: 0
+                    maximum: 800
+                    leftIcon: "north"
+                }
+
+                CompactMarginSetting {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: (parent.width - Theme.spacingM) / 2
+                    settingKey: "panelMarginBottom"
+                    label: "Bottom Margin"
+                    description: "Bottom side inset"
+                    defaultValue: 0
+                    minimum: 0
+                    maximum: 800
+                    leftIcon: "south"
+                }
             }
 
             ToggleSetting {
@@ -352,71 +520,110 @@ PluginSettings {
             }
 
             ToggleSetting {
-                id: decodeToggle
-                settingKey: "enableFullTextDecode"
-                label: "Enable Full Text Decode"
-                description: "Decode (show) full clipboard entries for cards (can increase CPU usage)"
+                settingKey: "closeOnOutsideClick"
+                label: "Close On Outside Click"
+                description: "Close panel when clicking outside the main container"
+                defaultValue: true
+            }
+
+            ToggleSetting {
+                settingKey: "showPanelSeparator"
+                label: "Show Panel Separator"
+                description: "Show the vertical separator between left component (pinned / todo) & note cards"
+                defaultValue: true
+            }
+
+            ToggleSetting {
+                id: hideBackgroundToggle
+                settingKey: "hidePanelBackground"
+                label: "Hide Panel Background"
+                description: "Disable background dimming"
                 defaultValue: false
             }
 
             Column {
                 width: parent.width
-                spacing: 4
-                visible: decodeToggle.value
-
-                StyledText {
-                    text: "Max Decoded Text Length"
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.surfaceText
-                }
+                spacing: 2
+                visible: !hideBackgroundToggle.value
 
                 Row {
                     width: parent.width
                     height: 24
                     spacing: Theme.spacingM
 
+                    StyledText {
+                        text: "Background Opacity"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 160
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
                     DankSlider {
-                        id: decodeLimitSlider
-                        width: parent.width - 90
-                        minimum: 100
-                        maximum: 500
-                        step: 10
+                        id: dimmingSlider
+                        width: parent.width - 160 - Theme.spacingM - dimmingValue.width - Theme.spacingM
+                        minimum: 0
+                        maximum: 80
+                        step: 5
                         showValue: false
                         anchors.verticalCenter: parent.verticalCenter
 
                         Binding {
-                            target: decodeLimitSlider
+                            target: dimmingSlider
                             property: "value"
-                            value: loadValue("maxDecodedTextLength", 250)
+                            value: loadValue("backgroundOpacity", 35)
                         }
 
-                        onSliderValueChanged: decodeLimitDebounce.restart()
+                        onSliderValueChanged: () => {
+                            backgroundOpacityDebounce.restart();
+                        }
                     }
 
                     StyledText {
-                        id: decodeLimitValue
-                        text: Math.round(decodeLimitSlider.value) + " chars"
+                        id: dimmingValue
+                        text: Math.round(dimmingSlider.value) + "%"
                         font.pixelSize: Theme.fontSizeSmall
-                        width: 70
+                        width: 50
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
 
-                Timer {
-                    id: decodeLimitDebounce
-                    interval: 200
-                    repeat: false
-                    onTriggered: root.saveValue("maxDecodedTextLength", Math.round(decodeLimitSlider.value))
+                StyledText {
+                    text: "Controls the backdrop opacity"
+                    font.pixelSize: Theme.fontSizeSmall * 0.9
+                    opacity: 0.6
+                    width: parent.width
+                    wrapMode: Text.Wrap
                 }
             }
 
+            Timer {
+                id: backgroundOpacityDebounce
+                interval: 300
+                repeat: false
+                onTriggered: root.saveValue("backgroundOpacity", Math.round(dimmingSlider.value))
+            }
+        }
+    }
+
+    // ── Tab Navigation ──
+    StyledRect {
+        visible: root.currentTab === 0
+        width: parent.width
+        height: tabNavColumn.implicitHeight + Theme.spacingL * 2
+        radius: Theme.cornerRadius
+        color: Theme.surfaceContainerHigh
+
+        Column {
+            id: tabNavColumn
+            anchors.fill: parent
+            anchors.margins: Theme.spacingL
+            spacing: Theme.spacingM
+
             StyledText {
-                visible: decodeToggle.value
-                width: parent.width
-                text: "Warning: Enabling this can cause increase in cpu usage, especially with large histories."
-                font.pixelSize: Theme.fontSizeSmall
-                color: Theme.warning
-                wrapMode: Text.WordWrap
+                text: "Tab Navigation"
+                font.pixelSize: Theme.fontSizeMedium
+                font.weight: Font.Medium
+                color: Theme.surfaceText
             }
 
             ToggleSetting {
@@ -506,97 +713,6 @@ PluginSettings {
                         }
                     }
                 }
-            }
-
-            ToggleSetting {
-                settingKey: "closeOnOutsideClick"
-                label: "Close On Outside Click"
-                description: "Close panel when clicking outside the main container"
-                defaultValue: true
-            }
-
-            ToggleSetting {
-                settingKey: "showBarWidget"
-                label: "Show Bar Widget"
-                description: "Display the ClipBoard+ icon in the bar"
-                defaultValue: true
-            }
-
-            ToggleSetting {
-                settingKey: "showPanelSeparator"
-                label: "Show Panel Separator"
-                description: "Show the vertical separator between left component (pinned / todo) & note cards"
-                defaultValue: true
-            }
-
-            ToggleSetting {
-                id: hideBackgroundToggle
-                settingKey: "hidePanelBackground"
-                label: "Hide Panel Background"
-                description: "Disable background dimming"
-                defaultValue: false
-            }
-
-            Column {
-                width: parent.width
-                spacing: 2
-                visible: !hideBackgroundToggle.value
-
-                Row {
-                    width: parent.width
-                    height: 24
-                    spacing: Theme.spacingM
-
-                    StyledText {
-                        text: "Background Opacity"
-                        font.pixelSize: Theme.fontSizeSmall
-                        width: 160
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
-                    DankSlider {
-                        id: dimmingSlider
-                        width: parent.width - 160 - Theme.spacingM - dimmingValue.width - Theme.spacingM
-                        minimum: 0
-                        maximum: 80
-                        step: 5
-                        showValue: false
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        Binding {
-                            target: dimmingSlider
-                            property: "value"
-                            value: loadValue("backgroundOpacity", 35)
-                        }
-
-                        onSliderValueChanged: () => {
-                            backgroundOpacityDebounce.restart();
-                        }
-                    }
-
-                    StyledText {
-                        id: dimmingValue
-                        text: Math.round(dimmingSlider.value) + "%"
-                        font.pixelSize: Theme.fontSizeSmall
-                        width: 50
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
-
-                StyledText {
-                    text: "Controls the backdrop opacity"
-                    font.pixelSize: Theme.fontSizeSmall * 0.9
-                    opacity: 0.6
-                    width: parent.width
-                    wrapMode: Text.Wrap
-                }
-            }
-
-            Timer {
-                id: backgroundOpacityDebounce
-                interval: 300
-                repeat: false
-                onTriggered: root.saveValue("backgroundOpacity", Math.round(dimmingSlider.value))
             }
         }
     }
@@ -1044,6 +1160,111 @@ PluginSettings {
     StyledRect {
         visible: root.currentTab === 2
         width: parent.width
+        height: clipboardColumn.implicitHeight + Theme.spacingL * 2
+        radius: Theme.cornerRadius
+        color: Theme.surfaceContainerHigh
+
+        Column {
+            id: clipboardColumn
+            anchors.fill: parent
+            anchors.margins: Theme.spacingL
+            spacing: Theme.spacingM
+
+            StyledText {
+                text: "Clipboard"
+                font.pixelSize: Theme.fontSizeMedium
+                font.weight: Font.Medium
+                color: Theme.surfaceText
+            }
+
+            ToggleSetting {
+                settingKey: "useDmsClipboard"
+                label: "Use Built-in DMS Clipboard"
+                description: "Use `DMSService` for getting clipboard history and clipboard copy/paste instead of cliphist and wl-clipboard."
+                defaultValue: true
+            }
+
+            ToggleSetting {
+                settingKey: "listenClipboardWhileOpen"
+                label: "Listen for clipboard when widget is opened"
+                description: "Update clipboard list automatically while the panel is open"
+                defaultValue: false
+            }
+
+            ToggleSetting {
+                id: decodeToggle
+                settingKey: "enableFullTextDecode"
+                label: "Enable Full Text Decode"
+                description: "Decode (show) full clipboard entries for cards (can increase CPU usage)"
+                defaultValue: false
+            }
+
+            Column {
+                width: parent.width
+                spacing: 4
+                visible: decodeToggle.value
+
+                StyledText {
+                    text: "Max Decoded Text Length"
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceText
+                }
+
+                Row {
+                    width: parent.width
+                    height: 24
+                    spacing: Theme.spacingM
+
+                    DankSlider {
+                        id: decodeLimitSlider
+                        width: parent.width - 90
+                        minimum: 100
+                        maximum: 500
+                        step: 10
+                        showValue: false
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Binding {
+                            target: decodeLimitSlider
+                            property: "value"
+                            value: loadValue("maxDecodedTextLength", 250)
+                        }
+
+                        onSliderValueChanged: decodeLimitDebounce.restart()
+                    }
+
+                    StyledText {
+                        id: decodeLimitValue
+                        text: Math.round(decodeLimitSlider.value) + " chars"
+                        font.pixelSize: Theme.fontSizeSmall
+                        width: 70
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                Timer {
+                    id: decodeLimitDebounce
+                    interval: 200
+                    repeat: false
+                    onTriggered: root.saveValue("maxDecodedTextLength", Math.round(decodeLimitSlider.value))
+                }
+            }
+
+            StyledText {
+                visible: decodeToggle.value
+                width: parent.width
+                text: "Warning: Enabling this can cause increase in cpu usage, especially with large histories."
+                font.pixelSize: Theme.fontSizeSmall
+                color: Theme.warning
+                wrapMode: Text.WordWrap
+            }
+        }
+    }
+
+    // ── Paths ──
+    StyledRect {
+        visible: root.currentTab === 3
+        width: parent.width
         height: pathsColumn.implicitHeight + Theme.spacingL * 2
         radius: Theme.cornerRadius
         color: Theme.surfaceContainerHigh
@@ -1113,43 +1334,6 @@ PluginSettings {
                     width: parent.width
                     wrapMode: Text.Wrap
                 }
-            }
-        }
-    }
-
-    // ── Clipboard Listen ──
-    StyledRect {
-        visible: root.currentTab === 2
-        width: parent.width
-        height: listenColumn.implicitHeight + Theme.spacingL * 2
-        radius: Theme.cornerRadius
-        color: Theme.surfaceContainerHigh
-
-        Column {
-            id: listenColumn
-            anchors.fill: parent
-            anchors.margins: Theme.spacingL
-            spacing: Theme.spacingM
-
-            StyledText {
-                text: "Clipboard"
-                font.pixelSize: Theme.fontSizeMedium
-                font.weight: Font.Medium
-                color: Theme.surfaceText
-            }
-
-            ToggleSetting {
-                settingKey: "useDmsClipboard"
-                label: "Use Built-in DMS Clipboard"
-                description: "Use `DMSService` for getting clipboard history and clipboard copy/paste instead of cliphist and wl-clipboard."
-                defaultValue: true
-            }
-
-            ToggleSetting {
-                settingKey: "listenClipboardWhileOpen"
-                label: "Listen for clipboard when widget is opened"
-                description: "Update clipboard list automatically while the panel is open"
-                defaultValue: false
             }
         }
     }

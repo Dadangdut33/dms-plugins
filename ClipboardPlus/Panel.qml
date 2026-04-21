@@ -102,8 +102,12 @@ Item {
     readonly property bool allowAttach: true
 
     property bool isFullscreen: pluginApi?.pluginSettings?.fullscreenMode ?? false
-    property real screenAvailableWidth: Math.max(320, (screen?.width ?? 1920) - Math.max(0, (pluginApi?.pluginSettings?.panelMarginX ?? 0)) * 2)
-    property real screenAvailableHeight: Math.max(240, (screen?.height ?? 900) - Math.max(0, (pluginApi?.pluginSettings?.panelMarginY ?? 0)) * 2)
+    property real panelMarginLeft: Math.max(0, pluginApi?.pluginSettings?.panelMarginLeft ?? pluginApi?.pluginSettings?.panelMarginX ?? 0)
+    property real panelMarginRight: Math.max(0, pluginApi?.pluginSettings?.panelMarginRight ?? pluginApi?.pluginSettings?.panelMarginX ?? 0)
+    property real panelMarginTop: Math.max(0, pluginApi?.pluginSettings?.panelMarginTop ?? pluginApi?.pluginSettings?.panelMarginY ?? 0)
+    property real panelMarginBottom: Math.max(0, pluginApi?.pluginSettings?.panelMarginBottom ?? pluginApi?.pluginSettings?.panelMarginY ?? 0)
+    property real screenAvailableWidth: Math.max(320, (screen?.width ?? 1920) - panelMarginLeft - panelMarginRight)
+    property real screenAvailableHeight: Math.max(240, (screen?.height ?? 900) - panelMarginTop - panelMarginBottom)
     property real contentPreferredWidth: isFullscreen ? screenAvailableWidth : Math.min(pluginApi?.pluginSettings?.panelWidth ?? 1450, screenAvailableWidth)
     property real contentPreferredHeight: isFullscreen ? screenAvailableHeight : Math.min(pluginApi?.pluginSettings?.panelHeight ?? 760, screenAvailableHeight)
     property real dimOpacity: {
@@ -474,7 +478,8 @@ Item {
         id: mainContainer
         width: Math.min(root.contentPreferredWidth || parent.width, parent.width)
         height: Math.min(root.contentPreferredHeight || parent.height, parent.height)
-        anchors.centerIn: parent
+        x: root.panelMarginLeft + Math.max(0, (root.screenAvailableWidth - width) / 2)
+        y: root.panelMarginTop + Math.max(0, (root.screenAvailableHeight - height) / 2)
 
         DankActionButton {
             visible: pluginApi?.pluginSettings?.showCloseButton ?? false
