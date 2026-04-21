@@ -102,8 +102,10 @@ Item {
     readonly property bool allowAttach: true
 
     property bool isFullscreen: pluginApi?.pluginSettings?.fullscreenMode ?? false
-    property real contentPreferredWidth: isFullscreen ? (screen?.width ?? 1920) : Math.min(1450, screen?.width ?? 1450)
-    property real contentPreferredHeight: isFullscreen ? (screen?.height ?? 900) : Math.min((screen?.height ?? 900) * 0.85, 760)
+    property real screenAvailableWidth: Math.max(320, (screen?.width ?? 1920) - Math.max(0, (pluginApi?.pluginSettings?.panelMarginX ?? 0)) * 2)
+    property real screenAvailableHeight: Math.max(240, (screen?.height ?? 900) - Math.max(0, (pluginApi?.pluginSettings?.panelMarginY ?? 0)) * 2)
+    property real contentPreferredWidth: isFullscreen ? screenAvailableWidth : Math.min(pluginApi?.pluginSettings?.panelWidth ?? 1450, screenAvailableWidth)
+    property real contentPreferredHeight: isFullscreen ? screenAvailableHeight : Math.min(pluginApi?.pluginSettings?.panelHeight ?? 760, screenAvailableHeight)
     property real dimOpacity: {
         const raw = pluginApi?.pluginSettings?.backgroundOpacity;
         const percent = (raw !== undefined && raw !== null) ? raw : 35;

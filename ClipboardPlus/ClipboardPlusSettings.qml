@@ -9,10 +9,38 @@ import qs.Widgets
 PluginSettings {
     id: root
     pluginId: "clipboardPlus"
-    Component.onCompleted: tabOrderInitTimer.restart()
+    property int currentTab: 0
+    function reloadNestedSettings(item) {
+        if (!item)
+            return;
+        if (item !== root && item.loadValue)
+            item.loadValue();
+
+        const children = item.children || [];
+        for (let i = 0; i < children.length; i++)
+            reloadNestedSettings(children[i]);
+
+        const data = item.data || [];
+        for (let i = 0; i < data.length; i++) {
+            const child = data[i];
+            if (child && children.indexOf(child) === -1)
+                reloadNestedSettings(child);
+        }
+    }
+    function refreshSettingsUi() {
+        root.reloadNestedSettings(root);
+        settingsTabBar.currentIndex = root.currentTab;
+        Qt.callLater(() => settingsTabBar.updateIndicator());
+    }
+    Component.onCompleted: {
+        tabOrderInitTimer.restart();
+        Qt.callLater(() => root.refreshSettingsUi());
+    }
     onVisibleChanged: {
-        if (visible)
+        if (visible) {
             tabOrderInitTimer.restart();
+            Qt.callLater(() => root.refreshSettingsUi());
+        }
     }
 
     Timer {
@@ -29,6 +57,7 @@ PluginSettings {
         function onPluginDataChanged(changedPluginId) {
             if (changedPluginId === root.pluginId) {
                 tabOrderInitTimer.restart();
+                Qt.callLater(() => root.refreshSettingsUi());
             }
         }
     }
@@ -200,8 +229,42 @@ PluginSettings {
         wrapMode: Text.WordWrap
     }
 
+    Item {
+        width: parent.width
+        height: 45 + Theme.spacingM
+
+        DankTabBar {
+            id: settingsTabBar
+            width: Math.min(parent.width, 420)
+            height: 45
+            anchors.horizontalCenter: parent.horizontalCenter
+            model: [
+                {
+                    "text": "Layout",
+                    "icon": "crop_free"
+                },
+                {
+                    "text": "Features",
+                    "icon": "widgets"
+                },
+                {
+                    "text": "Data",
+                    "icon": "folder"
+                }
+            ]
+
+            Component.onCompleted: Qt.callLater(updateIndicator)
+
+            onTabClicked: index => {
+                root.currentTab = index;
+                currentIndex = index;
+            }
+        }
+    }
+
     // ── Panel Options ──
     StyledRect {
+        visible: root.currentTab === 0
         width: parent.width
         height: panelColumn.implicitHeight + Theme.spacingL * 2
         radius: Theme.cornerRadius
@@ -221,10 +284,57 @@ PluginSettings {
             }
 
             ToggleSetting {
+                id: fullscreenModeToggle
                 settingKey: "fullscreenMode"
                 label: "Fullscreen Mode"
                 description: "Expand the clipboard panel to fill the entire screen"
                 defaultValue: true
+            }
+
+            SliderSetting {
+                settingKey: "panelWidth"
+                label: "Panel Width"
+                description: "Manual width for the panel when fullscreen mode is disabled"
+                defaultValue: 1450
+                minimum: 500
+                maximum: 2200
+                unit: "px"
+                leftIcon: "width"
+                visible: !fullscreenModeToggle.value
+            }
+
+            SliderSetting {
+                settingKey: "panelHeight"
+                label: "Panel Height"
+                description: "Manual height for the panel when fullscreen mode is disabled"
+                defaultValue: 760
+                minimum: 320
+                maximum: 1400
+                unit: "px"
+                leftIcon: "height"
+                visible: !fullscreenModeToggle.value
+            }
+
+            SliderSetting {
+                settingKey: "panelMarginX"
+                label: "Horizontal Margin"
+                description: "Reserve space on the left and right side of the screen before sizing the panel"
+                defaultValue: 0
+                minimum: 0
+                maximum: 240
+                unit: "px"
+                leftIcon: "swap_horiz"
+            }
+
+            SliderSetting {
+                settingKey: "panelMarginY"
+                label: "Vertical Margin"
+                description: "Reserve space on the top and bottom of the screen before sizing the panel"
+                defaultValue: 0
+                minimum: 0
+                maximum: 180
+                unit: "px"
+                leftIcon: "swap_vert"
             }
 
             ToggleSetting {
@@ -493,6 +603,7 @@ PluginSettings {
 
     // ── Panel Opacity ──
     StyledRect {
+        visible: root.currentTab === 0
         width: parent.width
         height: opacityColumn.implicitHeight + Theme.spacingL * 2
         radius: Theme.cornerRadius
@@ -621,6 +732,7 @@ PluginSettings {
 
     // ── Feature Toggles ──
     StyledRect {
+        visible: root.currentTab === 1
         width: parent.width
         height: featureColumn.implicitHeight + Theme.spacingL * 2
         radius: Theme.cornerRadius
@@ -647,23 +759,35 @@ PluginSettings {
             }
 
             ToggleSetting {
+                settingKey: "todoEnabled"
+                label: "Enable ToDo"
+                description: "Show the ToDo list in the pinned panel"
+                defaultValue: true
+            }
+
+            ToggleSetting {
                 settingKey: "notecardsEnabled"
                 label: "Enable Note Cards"
                 description: "Show notecards panel for quick notes"
                 defaultValue: true
             }
 
-            ToggleSetting {
-                settingKey: "todoEnabled"
-                label: "Enable ToDo"
-                description: "Show the ToDo list in the pinned panel"
-                defaultValue: true
+            SliderSetting {
+                settingKey: "noteCardScale"
+                label: "Note Card Scale"
+                description: "Scale note cards up or down"
+                defaultValue: 100
+                minimum: 70
+                maximum: 140
+                unit: "%"
+                leftIcon: "zoom_in"
             }
         }
     }
 
     // ── Pinned Data Limits ──
     StyledRect {
+        visible: root.currentTab === 1
         width: parent.width
         height: limitsColumn.implicitHeight + Theme.spacingL * 2
         radius: Theme.cornerRadius
@@ -808,6 +932,7 @@ PluginSettings {
 
     // ── Auto-Paste ──
     StyledRect {
+        visible: root.currentTab === 1
         width: parent.width
         height: autoPasteColumn.implicitHeight + Theme.spacingL * 2
         radius: Theme.cornerRadius
@@ -917,6 +1042,7 @@ PluginSettings {
 
     // ── Paths ──
     StyledRect {
+        visible: root.currentTab === 2
         width: parent.width
         height: pathsColumn.implicitHeight + Theme.spacingL * 2
         radius: Theme.cornerRadius
@@ -993,6 +1119,7 @@ PluginSettings {
 
     // ── Clipboard Listen ──
     StyledRect {
+        visible: root.currentTab === 2
         width: parent.width
         height: listenColumn.implicitHeight + Theme.spacingL * 2
         radius: Theme.cornerRadius

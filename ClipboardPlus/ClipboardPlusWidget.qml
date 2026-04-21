@@ -17,6 +17,11 @@ PluginComponent {
     property bool todoEnabled: pluginData.todoEnabled !== undefined ? pluginData.todoEnabled : true
     property bool showCloseButton: pluginData.showCloseButton !== undefined ? pluginData.showCloseButton : true
     property bool fullscreenMode: pluginData.fullscreenMode !== undefined ? pluginData.fullscreenMode : true
+    property int panelWidth: pluginData.panelWidth !== undefined ? pluginData.panelWidth : 1450
+    property int panelHeight: pluginData.panelHeight !== undefined ? pluginData.panelHeight : 760
+    property int panelMarginX: pluginData.panelMarginX !== undefined ? pluginData.panelMarginX : 0
+    property int panelMarginY: pluginData.panelMarginY !== undefined ? pluginData.panelMarginY : 0
+    property int noteCardScale: pluginData.noteCardScale !== undefined ? pluginData.noteCardScale : 100
     property bool hidePanelBackground: pluginData.hidePanelBackground !== undefined ? pluginData.hidePanelBackground : false
     property bool showBarWidget: pluginData.showBarWidget !== undefined ? pluginData.showBarWidget : true
     property string dataBasePath: pluginData.dataBasePath !== undefined ? pluginData.dataBasePath : ""
@@ -140,6 +145,11 @@ PluginComponent {
         property bool todoEnabled: root.todoEnabled
         property bool showCloseButton: root.showCloseButton
         property bool fullscreenMode: root.fullscreenMode
+        property int panelWidth: root.panelWidth
+        property int panelHeight: root.panelHeight
+        property int panelMarginX: root.panelMarginX
+        property int panelMarginY: root.panelMarginY
+        property int noteCardScale: root.noteCardScale
         property bool hidePanelBackground: root.hidePanelBackground
         property string dataBasePath: root.dataBasePath
         property string exportPath: root.exportPath

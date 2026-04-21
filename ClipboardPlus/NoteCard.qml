@@ -14,6 +14,10 @@ Rectangle {
     property int noteIndex: 0
     property string localColor: (note && note.color) ? note.color : "yellow"
     property bool localPrivate: note && note.isPrivate === true
+    property real storedWidth: note ? note.width : 350
+    property real storedHeight: note ? note.height : 280
+    property bool actionsMenuOpen: false
+    readonly property real noteScale: Math.max(0.7, (pluginApi?.pluginSettings?.noteCardScale ?? 100) / 100)
     readonly property var currentFocusItem: Window.activeFocusItem
     readonly property bool noteFocused: {
         let item = currentFocusItem;
@@ -31,6 +35,8 @@ Rectangle {
             localColor = note.color;
         }
         localPrivate = note && note.isPrivate === true;
+        storedWidth = note && note.width ? note.width : 350;
+        storedHeight = note && note.height ? note.height : 280;
     }
 
     // Color schemes
@@ -63,18 +69,24 @@ Rectangle {
         })
 
     // Constants for sizing
-    readonly property int minHeight: 200
-    readonly property int maxHeight: 600
-    readonly property int minWidth: 305
-    readonly property int maxWidth: 900
-    readonly property int headerHeight: 40
-    readonly property int margins: 24
+    readonly property int baseMinHeight: 200
+    readonly property int baseMaxHeight: 600
+    readonly property int baseMinWidth: 305
+    readonly property int baseMaxWidth: 900
+    readonly property int baseHeaderHeight: 40
+    readonly property int baseMargins: 24
+    readonly property int minHeight: Math.round(baseMinHeight * noteScale)
+    readonly property int maxHeight: Math.round(baseMaxHeight * noteScale)
+    readonly property int minWidth: Math.round(baseMinWidth * noteScale)
+    readonly property int maxWidth: Math.round(baseMaxWidth * noteScale)
+    readonly property int headerHeight: Math.round(baseHeaderHeight * noteScale)
+    readonly property int margins: Math.round(baseMargins * noteScale)
 
     // Position and size from note data
     x: note ? note.x : 0
     y: note ? note.y : 0
-    width: note ? note.width : 350
-    height: note ? note.height : minHeight
+    width: Math.round(storedWidth * noteScale)
+    height: Math.round(storedHeight * noteScale)
     z: note ? note.zIndex : 0
 
     // Color from note data
@@ -119,21 +131,21 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: 10
-                anchors.rightMargin: 6
-                spacing: 10
+                anchors.leftMargin: Math.round(10 * root.noteScale)
+                anchors.rightMargin: Math.round(6 * root.noteScale)
+                spacing: Math.round(10 * root.noteScale)
                 z: 1
                 clip: true
 
                 // Icon - DRAG HANDLE
                 Item {
-                    Layout.preferredWidth: 24
+                    Layout.preferredWidth: Math.round(24 * root.noteScale)
                     Layout.fillHeight: true
 
                     DankIcon {
                         anchors.centerIn: parent
                         name: "sticky_note_2"
-                        size: 15
+                        size: Math.round(15 * root.noteScale)
                         color: {
                             const noteColor = localColor;
                             const scheme = colorSchemes[noteColor];
@@ -175,7 +187,7 @@ Rectangle {
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    Layout.minimumWidth: 125
+                    Layout.minimumWidth: 0
                     layer.enabled: root.privacyBlurActive
                     layer.effect: MultiEffect {
                         blurEnabled: true
@@ -186,8 +198,8 @@ Rectangle {
                     TextInput {
                         id: titleInput
                         anchors.fill: parent
-                        anchors.leftMargin: 4
-                        anchors.rightMargin: 4
+                        anchors.leftMargin: Math.round(4 * root.noteScale)
+                        anchors.rightMargin: Math.round(4 * root.noteScale)
                         verticalAlignment: TextInput.AlignVCenter
                         horizontalAlignment: TextInput.AlignLeft
                         color: {
@@ -195,7 +207,7 @@ Rectangle {
                             const scheme = colorSchemes[noteColor];
                             return scheme ? scheme.fg : "#000000";
                         }
-                        font.pixelSize: 14
+                        font.pixelSize: Math.round(14 * root.noteScale)
                         font.bold: false
                         selectByMouse: true
                         clip: true
@@ -224,82 +236,23 @@ Rectangle {
                     }
                 }
                 DankActionButton {
-                    iconName: root.localPrivate ? "visibility_off" : "visibility"
-                    tooltipText: root.localPrivate ? "Disable Privacy Mode" : "Enable Privacy Mode"
+                    id: noteActionsButton
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: width
+                    Layout.preferredHeight: height
+                    width: Math.max(20, Math.round(28 * root.noteScale))
+                    height: Math.max(20, Math.round(28 * root.noteScale))
+                    buttonSize: width
+                    iconSize: Math.max(14, Math.round(16 * root.noteScale))
+                    iconName: "more_vert"
+                    tooltipText: "Note Actions"
                     iconColor: {
                         const noteColor = localColor;
                         const scheme = colorSchemes[noteColor];
                         return scheme ? scheme.fg : "#000000";
                     }
-                    backgroundColor: root.localPrivate ? Qt.rgba(0, 0, 0, 0.14) : "transparent"
-
-                    onClicked: {
-                        if (root.pluginApi && root.pluginApi.mainInstance && root.note) {
-                            localPrivate = !localPrivate;
-                            root.pluginApi.mainInstance.updateNoteCard(root.note.id, {
-                                isPrivate: localPrivate
-                            });
-                        }
-                    }
-                }
-                DankActionButton {
-                    iconName: "palette"
-                    tooltipText: "Change Color"
-                    iconColor: {
-                        const noteColor = localColor;
-                        const scheme = colorSchemes[noteColor];
-                        return scheme ? scheme.fg : "#000000";
-                    }
-                    backgroundColor: "transparent"
-
-                    onClicked: {
-                        const colors = ["yellow", "pink", "blue", "green", "purple"];
-                        const noteColor = localColor;
-                        const currentIndex = colors.indexOf(noteColor);
-                        const nextIndex = (currentIndex + 1) % colors.length;
-                        const nextColor = colors[nextIndex];
-
-                        if (root.pluginApi && root.pluginApi.mainInstance) {
-                            localColor = nextColor;
-                            root.pluginApi.mainInstance.updateNoteCard(root.note.id, {
-                                color: nextColor
-                            });
-                        }
-                    }
-                }
-
-                DankActionButton {
-                    iconName: "file_upload"
-                    tooltipText: "Export to .txt"
-                    iconColor: {
-                        const noteColor = localColor;
-                        const scheme = colorSchemes[noteColor];
-                        return scheme ? scheme.fg : "#000000";
-                    }
-                    backgroundColor: "transparent"
-
-                    onClicked: {
-                        if (root.pluginApi && root.pluginApi.mainInstance) {
-                            root.pluginApi.mainInstance.exportNoteCard(root.note.id);
-                        }
-                    }
-                }
-
-                DankActionButton {
-                    iconName: "delete"
-                    tooltipText: "Delete Note"
-                    iconColor: {
-                        const noteColor = localColor;
-                        const scheme = colorSchemes[noteColor];
-                        return scheme ? scheme.fg : "#000000";
-                    }
-                    backgroundColor: "transparent"
-
-                    onClicked: {
-                        if (root.pluginApi && root.pluginApi.mainInstance) {
-                            root.pluginApi.mainInstance.deleteNoteCard(root.note.id);
-                        }
-                    }
+                    backgroundColor: root.actionsMenuOpen ? Qt.rgba(0, 0, 0, 0.14) : "transparent"
+                    onClicked: root.actionsMenuOpen = !root.actionsMenuOpen
                 }
             }
         }
@@ -335,24 +288,30 @@ Rectangle {
             id: contentArea
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.margins: 12
+            Layout.margins: Math.round(12 * root.noteScale)
             clip: true
 
             ScrollView {
+                id: contentScroll
                 anchors.fill: parent
                 clip: true
+                background: Rectangle {
+                    color: "transparent"
+                }
                 layer.enabled: root.privacyBlurActive
                 layer.effect: MultiEffect {
                     blurEnabled: true
                     blur: 0.9
                     blurMax: 48
                 }
+                contentWidth: availableWidth
                 ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
                 TextArea {
                     id: textArea
-                    width: parent.width
+                    width: contentScroll.availableWidth
+                    height: Math.max(implicitHeight, contentScroll.availableHeight)
                     wrapMode: TextEdit.WrapAnywhere
                     selectByMouse: true
                     activeFocusOnPress: true
@@ -361,7 +320,7 @@ Rectangle {
                         const scheme = colorSchemes[noteColor];
                         return scheme ? scheme.fg : "#000000";
                     }
-                    font.pixelSize: 14
+                    font.pixelSize: Math.round(14 * root.noteScale)
                     background: Rectangle {
                         color: "transparent"
                     }
@@ -392,13 +351,13 @@ Rectangle {
                 DankIcon {
                     anchors.horizontalCenter: parent.horizontalCenter
                     name: "visibility_off"
-                    size: 20
+                    size: Math.round(20 * root.noteScale)
                     color: Qt.rgba(0, 0, 0, 0.55)
                 }
 
                 StyledText {
                     text: "Private"
-                    font.pixelSize: 12
+                    font.pixelSize: Math.round(12 * root.noteScale)
                     color: Qt.rgba(0, 0, 0, 0.6)
                 }
             }
@@ -407,7 +366,7 @@ Rectangle {
         // Note ID footer
         Rectangle {
             Layout.fillWidth: true
-            height: 18
+            height: Math.round(18 * root.noteScale)
             color: "transparent"
             Row {
                 anchors.left: parent.left
@@ -418,15 +377,15 @@ Rectangle {
                 StyledText {
                     id: noteIdText
                     text: note && note.id ? ("ID: " + note.id) : ""
-                    font.pixelSize: 10
+                    font.pixelSize: Math.round(10 * root.noteScale)
                     color: Theme.surfaceVariantText
                     elide: Text.ElideRight
                 }
 
                 DankActionButton {
-                    width: 10
-                    height: 10
-                    iconSize: 10
+                    width: Math.round(10 * root.noteScale)
+                    height: Math.round(10 * root.noteScale)
+                    iconSize: Math.round(10 * root.noteScale)
                     iconName: "content_copy"
                     tooltipText: "Copy ID"
                     backgroundColor: "transparent"
@@ -436,6 +395,125 @@ Rectangle {
                             root.pluginApi.mainInstance.copyTextToClipboard(root.note.id);
                         }
                     }
+                }
+            }
+        }
+    }
+
+    component NoteActionRow: Rectangle {
+        id: actionRow
+        required property string text
+        required property string iconName
+        signal triggered
+
+        width: parent.width
+        height: 38
+        radius: Theme.cornerRadius
+        color: actionArea.containsMouse ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12) : Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+
+        Row {
+            anchors.fill: parent
+            anchors.leftMargin: Theme.spacingM
+            anchors.rightMargin: Theme.spacingM
+            spacing: Theme.spacingS
+
+            DankIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                name: actionRow.iconName
+                size: 16
+                color: Theme.surfaceText
+            }
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                text: actionRow.text
+                font.pixelSize: Theme.fontSizeSmall
+                color: Theme.surfaceText
+            }
+        }
+
+        MouseArea {
+            id: actionArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: actionRow.triggered()
+        }
+    }
+
+    Rectangle {
+        id: noteActionsMenu
+        visible: root.actionsMenuOpen
+        z: 999
+        width: Math.min(Math.round(220 * root.noteScale), Math.max(Math.round(140 * root.noteScale), root.width - Theme.spacingM * 2))
+        height: actionsMenuColumn.implicitHeight + Theme.spacingS * 2
+        x: Math.max(Theme.spacingS, root.width - width - Theme.spacingS)
+        y: root.headerHeight + Theme.spacingXS
+        radius: Theme.cornerRadius * 1.25
+        color: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+        border.width: 1
+        border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.35)
+
+        Column {
+            id: actionsMenuColumn
+            anchors.fill: parent
+            anchors.margins: Theme.spacingS
+            spacing: Theme.spacingXS
+
+            NoteActionRow {
+                width: parent.width
+                text: root.localPrivate ? "Disable Privacy Mode" : "Enable Privacy Mode"
+                iconName: root.localPrivate ? "visibility_off" : "visibility"
+                onTriggered: {
+                    root.actionsMenuOpen = false;
+                    if (root.pluginApi && root.pluginApi.mainInstance && root.note) {
+                        localPrivate = !localPrivate;
+                        root.pluginApi.mainInstance.updateNoteCard(root.note.id, {
+                            isPrivate: localPrivate
+                        });
+                    }
+                }
+            }
+
+            NoteActionRow {
+                width: parent.width
+                text: "Change Color"
+                iconName: "palette"
+                onTriggered: {
+                    root.actionsMenuOpen = false;
+                    const colors = ["yellow", "pink", "blue", "green", "purple"];
+                    const noteColor = localColor;
+                    const currentIndex = colors.indexOf(noteColor);
+                    const nextIndex = (currentIndex + 1) % colors.length;
+                    const nextColor = colors[nextIndex];
+                    if (root.pluginApi && root.pluginApi.mainInstance) {
+                        localColor = nextColor;
+                        root.pluginApi.mainInstance.updateNoteCard(root.note.id, {
+                            color: nextColor
+                        });
+                    }
+                }
+            }
+
+            NoteActionRow {
+                width: parent.width
+                text: "Export to .txt"
+                iconName: "file_upload"
+                onTriggered: {
+                    root.actionsMenuOpen = false;
+                    if (root.pluginApi && root.pluginApi.mainInstance)
+                        root.pluginApi.mainInstance.exportNoteCard(root.note.id);
+                }
+            }
+
+            NoteActionRow {
+                width: parent.width
+                text: "Delete Note"
+                iconName: "delete"
+                onTriggered: {
+                    root.actionsMenuOpen = false;
+                    if (root.pluginApi && root.pluginApi.mainInstance)
+                        root.pluginApi.mainInstance.deleteNoteCard(root.note.id);
                 }
             }
         }
@@ -496,13 +574,13 @@ Rectangle {
     // Resize handle (bottom-right)
     Rectangle {
         id: resizeHandle
-        width: 16
-        height: 16
+        width: Math.round(16 * root.noteScale)
+        height: Math.round(16 * root.noteScale)
         radius: 4
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.rightMargin: 6
-        anchors.bottomMargin: 6
+        anchors.rightMargin: Math.round(6 * root.noteScale)
+        anchors.bottomMargin: Math.round(6 * root.noteScale)
         color: Qt.rgba(0, 0, 0, 0.12)
         border.width: 1
         border.color: Qt.rgba(0, 0, 0, 0.18)
@@ -532,15 +610,15 @@ Rectangle {
                 const dy = mouse.y - startY;
                 const newW = Math.max(root.minWidth, Math.min(root.maxWidth, startW + dx));
                 const newH = Math.max(root.minHeight, Math.min(root.maxHeight, startH + dy));
-                root.width = newW;
-                root.height = newH;
+                root.storedWidth = newW / root.noteScale;
+                root.storedHeight = newH / root.noteScale;
             }
 
             onReleased: {
                 if (root.pluginApi && root.pluginApi.mainInstance && root.note) {
                     root.pluginApi.mainInstance.updateNoteCard(root.note.id, {
-                        width: root.width,
-                        height: root.height
+                        width: Math.round(root.storedWidth),
+                        height: Math.round(root.storedHeight)
                     });
                 }
             }
