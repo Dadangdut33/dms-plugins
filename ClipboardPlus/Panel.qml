@@ -30,10 +30,11 @@ Item {
     function focusClipboardList() {
         if (!listView)
             return;
+        applyPendingSelectionReset();
         listView.forceActiveFocus();
         if (listView.count > 0) {
             selectedIndex = Math.min(selectedIndex, listView.count - 1);
-            listView.positionViewAtIndex(selectedIndex, ListView.Contain);
+            listView.positionViewAtIndex(selectedIndex, selectedIndex === 0 ? ListView.Beginning : ListView.Contain);
         }
     }
 
@@ -79,6 +80,7 @@ Item {
     // Save notecards when panel is closed
     onVisibleChanged: {
         if (visible) {
+            Qt.callLater(() => focusClipboardList());
             pluginApi?.mainInstance?.refreshOnPanelOpen();
             if (pluginApi?.mainInstance && !pluginApi.mainInstance.noteCardsLoaded) {
                 pluginApi.mainInstance.loadNoteCards();
@@ -118,6 +120,7 @@ Item {
 
     // Keyboard navigation
     property int selectedIndex: 0
+    property bool resetSelectionOnNextFocus: false
 
     // Filtering
     property string filterType: ""
@@ -200,6 +203,24 @@ Item {
         if (listView && listView.count > 0) {
             selectedIndex = Math.min(listView.count - 1, selectedIndex + 1);
             listView.positionViewAtIndex(selectedIndex, ListView.Contain);
+        }
+    }
+
+    function scheduleResetSelectionAfterPasteClose() {
+        if (!(pluginApi?.pluginSettings?.resetSelectionAfterPasteClose ?? false))
+            return;
+        resetSelectionOnNextFocus = true;
+    }
+
+    function applyPendingSelectionReset() {
+        if (!resetSelectionOnNextFocus || !listView)
+            return;
+        selectedIndex = 0;
+        listView.contentX = 0;
+        listView.contentY = 0;
+        if (listView.count > 0) {
+            listView.positionViewAtIndex(0, ListView.Beginning);
+            resetSelectionOnNextFocus = false;
         }
     }
 
@@ -364,6 +385,7 @@ Item {
         categoryIndex = filterTypeToCategoryIndex();
     }
     onSearchTextChanged: selectedIndex = 0
+    onFilteredItemsChanged: Qt.callLater(() => applyPendingSelectionReset())
 
     // Filtered items (uses shared getItemType from Main.qml)
     readonly property var filteredItems: {
@@ -409,6 +431,7 @@ Item {
                 pluginApi?.mainInstance?.copyToClipboard(item.id);
                 if (pluginApi) {
                     pluginApi.closePanel(screen);
+                    scheduleResetSelectionAfterPasteClose();
                     const enterPaste = pluginApi?.pluginSettings?.autoPasteOnEnterSelect ?? false;
                     if (enterPaste) {
                         pluginApi.mainInstance?.triggerAutoPaste();
@@ -1586,7 +1609,10 @@ Item {
                     onContentYChanged: updateVisibleDecode()
                     onWidthChanged: updateVisibleDecode()
                     onHeightChanged: updateVisibleDecode()
-                    onCountChanged: updateVisibleDecode()
+                    onCountChanged: {
+                        root.applyPendingSelectionReset();
+                        updateVisibleDecode();
+                    }
                     Component.onCompleted: Qt.callLater(updateVisibleDecode)
 
                     Keys.onUpPressed: {
@@ -1611,6 +1637,7 @@ Item {
                                 root.pluginApi?.mainInstance?.copyToClipboard(item.id);
                                 if (root.pluginApi) {
                                     root.pluginApi.closePanel(screen);
+                                    root.scheduleResetSelectionAfterPasteClose();
                                     const enterPaste = root.pluginApi?.pluginSettings?.autoPasteOnEnterSelect ?? false;
                                     if (enterPaste) {
                                         root.pluginApi.mainInstance?.triggerAutoPaste();
@@ -1680,6 +1707,7 @@ Item {
                             root.pluginApi?.mainInstance?.copyToClipboard(clipboardId);
                             if (root.pluginApi) {
                                 root.pluginApi.closePanel(screen);
+                                root.scheduleResetSelectionAfterPasteClose();
                                 const autoPaste = root.pluginApi.pluginSettings?.autoPasteOnClick ?? false;
                                 const rmbOnly = root.pluginApi.pluginSettings?.autoPasteOnRightClick ?? false;
                                 if (autoPaste && !rmbOnly) {
@@ -1696,6 +1724,7 @@ Item {
                                 root.pluginApi?.mainInstance?.copyToClipboard(clipboardId);
                                 if (root.pluginApi) {
                                     root.pluginApi.closePanel(screen);
+                                    root.scheduleResetSelectionAfterPasteClose();
                                     root.pluginApi.mainInstance?.triggerAutoPaste();
                                 }
                             }

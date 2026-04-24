@@ -32,6 +32,7 @@ PluginComponent {
     property bool autoPasteOnClick: pluginData.autoPasteOnClick !== undefined ? pluginData.autoPasteOnClick : (pluginData.autoPaste !== undefined ? pluginData.autoPaste : false)
     property bool autoPasteOnRightClick: pluginData.autoPasteOnRightClick !== undefined ? pluginData.autoPasteOnRightClick : false
     property bool autoPasteOnEnterSelect: pluginData.autoPasteOnEnterSelect !== undefined ? pluginData.autoPasteOnEnterSelect : false
+    property bool resetSelectionAfterPasteClose: pluginData.resetSelectionAfterPasteClose !== undefined ? pluginData.resetSelectionAfterPasteClose : false
     property int autoPasteDelay: pluginData.autoPasteDelay !== undefined ? pluginData.autoPasteDelay : 300
     property int panelDimOpacity: pluginData.panelDimOpacity !== undefined ? pluginData.panelDimOpacity : 35
     property bool closeOnOutsideClick: pluginData.closeOnOutsideClick !== undefined ? pluginData.closeOnOutsideClick : true
@@ -161,6 +162,7 @@ PluginComponent {
         property bool autoPasteOnClick: root.autoPasteOnClick
         property bool autoPasteOnRightClick: root.autoPasteOnRightClick
         property bool autoPasteOnEnterSelect: root.autoPasteOnEnterSelect
+        property bool resetSelectionAfterPasteClose: root.resetSelectionAfterPasteClose
         property int autoPasteDelay: root.autoPasteDelay
         property int maxPinnedTextMb: root.maxPinnedTextMb
         property int maxPinnedImageMb: root.maxPinnedImageMb
