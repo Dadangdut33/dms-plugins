@@ -1092,6 +1092,13 @@ PluginSettings {
                 defaultValue: false
             }
 
+            ToggleSetting {
+                settingKey: "resetSelectionAfterPasteClose"
+                label: "Reset Clipboard Selection After Paste"
+                description: "Only for clipboard items: after paste closes the panel, reopen with the first clipboard item selected. Does not affect pinned or todo."
+                defaultValue: false
+            }
+
             Timer {
                 id: autoPasteDelayDebounce
                 interval: 300

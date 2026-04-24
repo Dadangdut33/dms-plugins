@@ -977,6 +977,10 @@ Item {
         const item = root.pinnedItems.find(i => i.id === pinnedId);
         if (!item)
             return;
+        if (root.useBuiltInDmsClipboard) {
+            copyToClipboard(item.cliphistId || item.id);
+            return;
+        }
         if (item.isImage && item.content) {
             const matches = item.content.match(/^data:([^;]+);base64,(.+)$/);
             if (!matches) {
