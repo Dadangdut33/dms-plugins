@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import qs.Common
 import qs.Modules.Plugins
 import qs.Services
@@ -11,20 +12,26 @@ PluginComponent {
     pluginId: "systemMonitorPlus"
     layerNamespacePlugin: "system-monitor-plus"
 
-    readonly property var allResourceKeys: ["cpuUsage", "cpuTemp", "ramUsage", "gpuTemp"]
+    readonly property var allResourceKeys: ["cpuUsage", "cpuTemp", "ramUsage", "gpuTemp", "diskPartitionUsage"]
     readonly property var enabledResources: visibleResources()
     readonly property string primaryResource: enabledResources.length > 0 ? enabledResources[0] : "cpuUsage"
     readonly property string resourceSignature: JSON.stringify(enabledResources) + "|" + gpuSubscriptionSignature()
 
     property var _trackedModules: []
     property var _trackedGpuPciIds: []
+    property var _parsedDiskMounts: []
+    property real _parsedDiskMountsPercent: -1
 
     pillRightClickAction: rightClickSettingsEnabled() ? (() => {
         PopoutService.openSettingsWithTab("plugins");
     }) : null
 
     pillClickAction: () => {
-        openProcessList();
+        if (primaryResource === "diskPartitionUsage") {
+            pluginPopout.toggle();
+        } else {
+            openProcessList();
+        }
     }
 
     function pluginValue(key, fallback) {
@@ -86,6 +93,19 @@ PluginComponent {
                 "maxValue": 100,
                 "warning": 65,
                 "danger": 80,
+                "precision": 0
+            };
+        case "diskPartitionUsage":
+            return {
+                "label": "Disk Usage",
+                "icon": "sd_storage",
+                "module": "disk",
+                "sortKey": "cpu",
+                "placeholder": "--%",
+                "unit": "%",
+                "maxValue": 100,
+                "warning": 80,
+                "danger": 90,
                 "precision": 0
             };
         case "cpuUsage":
@@ -158,6 +178,8 @@ PluginComponent {
             return DgopService.memoryUsage;
         case "gpuTemp":
             return gpu ? (gpu.temperature || 0) : 0;
+        case "diskPartitionUsage":
+            return _parsedDiskMountsPercent >= 0 ? _parsedDiskMountsPercent : 0;
         case "cpuUsage":
         default:
             return DgopService.cpuUsage;
@@ -167,6 +189,8 @@ PluginComponent {
     function hasValue(resourceKey) {
         if (resourceKey === "gpuTemp")
             return resolveSelectedGpu(resourceKey) !== null;
+        if (resourceKey === "diskPartitionUsage")
+            return _parsedDiskMountsPercent >= 0;
         const value = currentValue(resourceKey);
         return value !== undefined && value !== null;
     }
@@ -228,6 +252,8 @@ PluginComponent {
             return formatRamValue(verticalCompact);
         if (!hasValue(resourceKey))
             return meta.placeholder;
+        if (resourceKey === "diskPartitionUsage")
+            return Number(_parsedDiskMountsPercent).toFixed(meta.precision) + meta.unit;
         const value = currentValue(resourceKey);
         if (resourceKey === "cpuTemp" || resourceKey === "gpuTemp")
             return Math.round(value).toString() + meta.unit;
@@ -437,12 +463,95 @@ PluginComponent {
 
     onResourceSignatureChanged: Qt.callLater(syncDgopSubscriptions)
 
+    Process {
+        id: diskFetchProcess
+        command: ["dgop", "disk", "--json"]
+        stdout: SplitParser {
+            onRead: function(data) {
+                try {
+                    const parsed = JSON.parse(data.trim());
+                    const mounts = parsed.mounts || [];
+                    if (Array.isArray(mounts)) {
+                        root._parsedDiskMounts = mounts;
+                        const mountPoint = String(root.pluginValue("diskPartitionUsageMount", "/"));
+                        const match = mounts.find(m => m.mount === mountPoint);
+                        root._parsedDiskMountsPercent = match ? parseInt(match.percent, 10) : -1;
+                    }
+                } catch (e) {
+                    root._parsedDiskMounts = [];
+                    root._parsedDiskMountsPercent = -1;
+                }
+            }
+        }
+    }
+
+    Timer {
+        id: diskFetchTimer
+        interval: 5000
+        running: root.enabledResources.indexOf("diskPartitionUsage") > -1
+        repeat: true
+        onTriggered: diskFetchProcess.running = true
+        onRunningChanged: {
+            if (!running) {
+                root._parsedDiskMounts = [];
+                root._parsedDiskMountsPercent = -1;
+            }
+        }
+    }
+
     Component.onCompleted: {
         syncDgopSubscriptions();
+        if (enabledResources.indexOf("diskPartitionUsage") > -1)
+            diskFetchProcess.running = true;
     }
 
     Component.onDestruction: {
         cleanupDgopSubscriptions();
+    }
+
+    popoutContent: Component {
+        Column {
+            width: root.popoutWidth
+            spacing: Theme.spacingS
+
+            Repeater {
+                model: _parsedDiskMounts
+                delegate: Row {
+                    width: parent.width
+                    height: 32
+                    spacing: Theme.spacingM
+
+                    StyledText {
+                        text: modelData.mount
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: Theme.surfaceText
+                        width: 100
+                    }
+
+                    StyledText {
+                        text: modelData.size
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: Theme.surfaceVariantText
+                        width: 90
+                    }
+
+                    StyledText {
+                        text: (modelData.used || "") + " / " + (modelData.avail || "")
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: Theme.surfaceText
+                    }
+
+                    StyledText {
+                        text: modelData.percent
+                        font.pixelSize: Theme.fontSizeMedium
+                        horizontalAlignment: Text.AlignRight
+                        width: 50
+                        color: modelData.mount === String(pluginValue("diskPartitionUsageMount", "/")) ? Theme.primary : Theme.surfaceVariantText
+                        font.weight: modelData.mount === String(pluginValue("diskPartitionUsageMount", "/")) ? Font.Bold : Font.Normal
+                    }
+                }
+            }
+        }
     }
 
     horizontalBarPill: Component {

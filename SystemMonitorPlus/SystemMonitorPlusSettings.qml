@@ -1,4 +1,6 @@
 import QtQuick
+import Quickshell
+import Quickshell.Io
 import QtQuick.Layouts
 import qs.Common
 import qs.Modules.Plugins
@@ -12,7 +14,7 @@ PluginSettings {
     property int currentTab: 0
     property bool resourceCardActive: true
 
-    readonly property var allResourceKeys: ["cpuUsage", "cpuTemp", "ramUsage", "gpuTemp"]
+    readonly property var allResourceKeys: ["cpuUsage", "cpuTemp", "ramUsage", "gpuTemp", "diskPartitionUsage"]
     readonly property var colorOptions: [
         {
             "label": "Widget Text",
@@ -136,6 +138,8 @@ PluginSettings {
             return "RAM Usage";
         case "gpuTemp":
             return "GPU Temperature";
+        case "diskPartitionUsage":
+            return "Disk Usage";
         case "cpuUsage":
         default:
             return "CPU Usage";
@@ -150,6 +154,8 @@ PluginSettings {
             return "Monitor memory usage from DgopService.";
         case "gpuTemp":
             return "Monitor GPU temperature from DgopService for a selected GPU.";
+        case "diskPartitionUsage":
+            return "Monitor disk partition usage from dgop.";
         case "cpuUsage":
         default:
             return "Monitor CPU load from DgopService.";
@@ -164,6 +170,8 @@ PluginSettings {
             return "developer_board";
         case "gpuTemp":
             return "auto_awesome_mosaic";
+        case "diskPartitionUsage":
+            return "sd_storage";
         case "cpuUsage":
         default:
             return "memory";
@@ -178,6 +186,8 @@ PluginSettings {
             return 75;
         case "gpuTemp":
             return 65;
+        case "diskPartitionUsage":
+            return 80;
         case "cpuUsage":
         default:
             return 60;
@@ -192,6 +202,8 @@ PluginSettings {
             return 90;
         case "gpuTemp":
             return 80;
+        case "diskPartitionUsage":
+            return 90;
         case "cpuUsage":
         default:
             return 80;
@@ -209,6 +221,45 @@ PluginSettings {
             });
         }
         return items;
+    }
+
+    Process {
+        id: diskMountsProcess
+        command: ["dgop", "disk", "--json"]
+        onExited: exitCode => {
+            if (exitCode !== 0) {
+                ToastService.showError("Disk init process failed with exit code:", exitCode);
+            }
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.trim()) {
+                    try {
+                        const data = JSON.parse(text.trim());
+                        _diskMounts = data.mounts || [];
+                    } catch (e) {
+                        ToastService.showError("Failed to parse disk init JSON:", e);
+                    }
+                }
+            }
+        }
+    }
+
+    function refreshDiskMounts() {
+        _diskMounts = [];
+        diskMountsProcess.running = true;
+    }
+
+    property var _diskMounts: []
+    function diskMountOptions(resourceKey) {
+        if (_diskMounts.length === 0)
+            return [];
+        return _diskMounts.map(m => ({
+            label: m.mount + " (" + m.size + ")",
+            value: m.mount
+        }));
+
+        // return [{label: "/", value: "/"},{label: "/home", value: "/home"}];
     }
 
     function resourceIsGpu(key) {
@@ -309,6 +360,8 @@ PluginSettings {
             return "ramUsage";
         case 4:
             return "gpuTemp";
+        case 5:
+            return "diskPartitionUsage";
         default:
             return "";
         }
@@ -320,11 +373,17 @@ PluginSettings {
             Qt.callLater(() => refreshSettingsUi());
             if (currentTab > 0)
                 rebuildResourceCard();
+            if (currentTab === 5)
+                refreshDiskMounts();
         }
     }
     onCurrentTabChanged: {
         if (currentTab > 0)
             rebuildResourceCard();
+        if (currentTab === 5)
+            ToastService.showInfo(388);
+            diskMountsProcess.running = true;
+            refreshDiskMounts();
     }
 
     Connections {
@@ -893,6 +952,15 @@ PluginSettings {
             defaultValue: root.gpuOptions().length > 0 ? root.gpuOptions()[0].value : ""
         }
 
+        InlineSelectionSetting {
+            visible: resourceKey === "diskPartitionUsage"
+            settingKey: resourceKey + "Mount"
+            label: "Partition"
+            description: "Choose which partition to monitor"
+            options: root.diskMountOptions(resourceKey)
+            defaultValue: "/"
+        }
+
         StyledText {
             visible: root.resourceIsGpu(resourceKey) && root.gpuOptions().length === 0
             width: parent.width
@@ -1052,6 +1120,10 @@ PluginSettings {
                 {
                     "text": "GPU Temp",
                     "icon": "thermostat"
+                },
+                {
+                    "text": "Disk",
+                    "icon": "sd_storage"
                 }
             ]
 
