@@ -71,7 +71,7 @@ Item {
     readonly property int maxPinnedTextMb: Math.max(1, Math.floor(pluginApi?.pluginSettings?.maxPinnedTextMb ?? 1)) * 1024 * 1024
     readonly property int maxPinnedImageMb: Math.max(5, Math.floor(pluginApi?.pluginSettings?.maxPinnedImageMb ?? 5)) * 1024 * 1024
     readonly property int maxPreviewImageSize: maxPinnedImageMb
-    readonly property bool useBuiltInDmsClipboard: pluginApi?.pluginSettings?.useDmsClipboard ?? (pluginApi?.pluginSettings?.useBuiltInDmsClipboard ?? false)
+    readonly property bool useBuiltInDmsClipboard: pluginApi?.pluginSettings?.useDmsClipboard ?? (pluginApi?.pluginSettings?.useBuiltInDmsClipboard ?? true)
 
     // ── Paths ──────────────────────────────────────────────────────────────────
     readonly property string defaultConfigRoot: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/dms-clipboardPlus"
