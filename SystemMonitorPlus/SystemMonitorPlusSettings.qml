@@ -255,9 +255,9 @@ PluginSettings {
         if (_diskMounts.length === 0)
             return [];
         return _diskMounts.map(m => ({
-            label: m.mount + " (" + m.size + ")",
-            value: m.mount
-        }));
+                    label: m.mount + " (" + m.size + ")",
+                    value: m.mount
+                }));
 
         // return [{label: "/", value: "/"},{label: "/home", value: "/home"}];
     }
@@ -380,10 +380,10 @@ PluginSettings {
     onCurrentTabChanged: {
         if (currentTab > 0)
             rebuildResourceCard();
-        if (currentTab === 5)
-            ToastService.showInfo(388);
+        if (currentTab === 5) {
             diskMountsProcess.running = true;
             refreshDiskMounts();
+        }
     }
 
     Connections {
