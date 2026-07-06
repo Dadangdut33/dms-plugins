@@ -14,7 +14,7 @@ PluginSettings {
     property int currentTab: 0
     property bool resourceCardActive: true
 
-    readonly property var allResourceKeys: ["cpuUsage", "cpuTemp", "ramUsage", "gpuTemp", "diskPartitionUsage"]
+    readonly property var allResourceKeys: ["cpuUsage", "cpuTemp", "ramUsage", "gpuTemp", "diskPartitionUsage", "networkSpeed"]
     readonly property var colorOptions: [
         {
             "label": "Widget Text",
@@ -140,6 +140,8 @@ PluginSettings {
             return "GPU Temperature";
         case "diskPartitionUsage":
             return "Disk Usage";
+        case "networkSpeed":
+            return "Network Speed";
         case "cpuUsage":
         default:
             return "CPU Usage";
@@ -172,6 +174,8 @@ PluginSettings {
             return "auto_awesome_mosaic";
         case "diskPartitionUsage":
             return "sd_storage";
+        case "networkSpeed":
+            return "network_cell";
         case "cpuUsage":
         default:
             return "memory";
@@ -267,7 +271,7 @@ PluginSettings {
     }
 
     function resourceUsesProgressScale(key) {
-        return key === "cpuTemp" || key === "gpuTemp";
+        return key === "cpuTemp" || key === "gpuTemp" || key === "networkSpeed";;
     }
 
     function progressScaleUnit(key) {
@@ -275,6 +279,8 @@ PluginSettings {
         case "cpuTemp":
         case "gpuTemp":
             return "°";
+        case "networkSpeed":
+            return " KB/s";
         default:
             return "";
         }

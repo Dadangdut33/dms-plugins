@@ -12,7 +12,7 @@ PluginComponent {
     pluginId: "systemMonitorPlus"
     layerNamespacePlugin: "system-monitor-plus"
 
-    readonly property var allResourceKeys: ["cpuUsage", "cpuTemp", "ramUsage", "gpuTemp", "diskPartitionUsage"]
+    readonly property var allResourceKeys: ["cpuUsage", "cpuTemp", "ramUsage", "gpuTemp", "diskPartitionUsage", "networkSpeed"]
     readonly property var enabledResources: visibleResources()
     readonly property string primaryResource: enabledResources.length > 0 ? enabledResources[0] : "cpuUsage"
     readonly property string resourceSignature: JSON.stringify(enabledResources) + "|" + gpuSubscriptionSignature()
@@ -21,6 +21,12 @@ PluginComponent {
     property var _trackedGpuPciIds: []
     property var _parsedDiskMounts: []
     property real _parsedDiskMountsPercent: -1
+    property real _lastDownloadBytes: 0
+    property real _lastUploadBytes: 0
+    property real _lastNetworkTime: 0
+    property string _networkInterface: ""
+    property string _downloadSpeedFormatted: "--"
+    property string _uploadSpeedFormatted: "--"
 
     pillRightClickAction: rightClickSettingsEnabled() ? (() => {
         PopoutService.openSettingsWithTab("plugins");
@@ -108,6 +114,19 @@ PluginComponent {
                 "danger": 90,
                 "precision": 0
             };
+        case "networkSpeed":
+            return {
+                "label": "Network Speed",
+                "icon": "network_cell",
+                "module": "network",
+                "sortKey": "network",
+                "placeholder": "--",
+                "unit": "",
+                "maxValue": 100,
+                "warning": 70,
+                "danger": 90,
+                "precision": 0
+            };
         case "cpuUsage":
         default:
             return {
@@ -180,6 +199,8 @@ PluginComponent {
             return gpu ? (gpu.temperature || 0) : 0;
         case "diskPartitionUsage":
             return _parsedDiskMountsPercent >= 0 ? _parsedDiskMountsPercent : 0;
+        case "networkSpeed":
+            return _downloadSpeedFormatted + " / " + _uploadSpeedFormatted;
         case "cpuUsage":
         default:
             return DgopService.cpuUsage;
@@ -191,12 +212,31 @@ PluginComponent {
             return resolveSelectedGpu(resourceKey) !== null;
         if (resourceKey === "diskPartitionUsage")
             return _parsedDiskMountsPercent >= 0;
+        if (resourceKey === "networkSpeed")
+            return _lastNetworkTime > 0;
         const value = currentValue(resourceKey);
         return value !== undefined && value !== null;
     }
 
-    function ramTextMode() {
-        return String(pluginValue("ramUsageTextMode", "percentage"));
+    function formatNetworkSpeed(verticalCompact = false) {
+        const downloadText = _downloadSpeedFormatted || "--";
+        const uploadText = _uploadSpeedFormatted || "--";
+        if (verticalCompact)
+            return "↓ " + downloadText + "\n↑ " + uploadText;
+        return "↓ " + downloadText + " / ↑ " + uploadText;
+    }
+
+    function formatSpeed(bytesPerSecond) {
+        if (bytesPerSecond === undefined || bytesPerSecond === null || bytesPerSecond <= 0)
+            return "--";
+        const bytes = Number(bytesPerSecond);
+        if (bytes >= 1e9)
+            return (bytes / 1e9).toFixed(1) + " GB/s";
+        if (bytes >= 1e6)
+            return (bytes / 1e6).toFixed(1) + " MB/s";
+        if (bytes >= 1e3)
+            return (bytes / 1e3).toFixed(0) + " KB/s";
+        return Math.round(bytes).toString() + " B/s";
     }
 
     function formatMemoryGb(valueMb) {
@@ -250,6 +290,8 @@ PluginComponent {
         const meta = resourceInfo(resourceKey);
         if (resourceKey === "ramUsage")
             return formatRamValue(verticalCompact);
+        if (resourceKey === "networkSpeed")
+            return formatNetworkSpeed(verticalCompact);
         if (!hasValue(resourceKey))
             return meta.placeholder;
         if (resourceKey === "diskPartitionUsage")
@@ -261,6 +303,8 @@ PluginComponent {
     }
 
     function progressFor(resourceKey) {
+        if (resourceKey === "networkSpeed")
+            return 0;
         const maxValue = Math.max(1, Number(pluginValue(resourceKey + "ProgressMaxValue", resourceInfo(resourceKey).maxValue)));
         return Math.max(0, Math.min(1, Number(currentValue(resourceKey) || 0) / maxValue));
     }
@@ -464,6 +508,30 @@ PluginComponent {
     onResourceSignatureChanged: Qt.callLater(syncDgopSubscriptions)
 
     Process {
+        id: networkInterfaceProcess
+
+        command: [
+            "sh",
+            "-c",
+            "ip route get 1.1.1.1 | awk '{print $5; exit}'"
+        ]
+
+        stdout: SplitParser {
+            onRead: function(data) {
+                root._networkInterface = data.trim();
+            }
+        }
+    }
+
+    Timer {
+        interval: 30000
+        repeat: true
+        running: true
+
+        onTriggered: networkInterfaceProcess.running = true
+    }
+
+    Process {
         id: diskFetchProcess
         command: ["dgop", "disk", "--json"]
         stdout: SplitParser {
@@ -499,10 +567,98 @@ PluginComponent {
         }
     }
 
+    Process {
+        id: networkFetchProcess
+
+        command: [
+            "sh",
+            "-c",
+            `
+            iface=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $5; exit}')
+
+            if [ -z "$iface" ]; then
+                exit 1
+            fi
+
+            rx=$(cat /sys/class/net/$iface/statistics/rx_bytes 2>/dev/null)
+            tx=$(cat /sys/class/net/$iface/statistics/tx_bytes 2>/dev/null)
+
+            echo "$iface $rx $tx"
+            `
+        ]
+
+        stdout: SplitParser {
+            onRead: function(data) {
+                try {
+                    const parts = data.trim().split(/\s+/);
+
+                    if (parts.length < 3)
+                        return;
+
+                    const iface = parts[0];
+                    const downloadBytes = Number(parts[1]);
+                    const uploadBytes = Number(parts[2]);
+
+                    const now = Date.now();
+
+                    // interface berubah (wifi -> lan, vpn, dsb)
+                    if (root._networkInterface !== iface) {
+                        root._networkInterface = iface;
+                        root._lastDownloadBytes = downloadBytes;
+                        root._lastUploadBytes = uploadBytes;
+                        root._lastNetworkTime = now;
+                        return;
+                    }
+
+                    const deltaTime = (now - root._lastNetworkTime) / 1000;
+
+                    if (root._lastNetworkTime > 0 && deltaTime > 0) {
+                        const downloadSpeed =
+                            (downloadBytes - root._lastDownloadBytes) / deltaTime;
+
+                        const uploadSpeed =
+                            (uploadBytes - root._lastUploadBytes) / deltaTime;
+
+                        root._downloadSpeedFormatted =
+                            root.formatSpeed(Math.max(downloadSpeed, 0));
+
+                        root._uploadSpeedFormatted =
+                            root.formatSpeed(Math.max(uploadSpeed, 0));
+                    }
+
+                    root._lastDownloadBytes = downloadBytes;
+                    root._lastUploadBytes = uploadBytes;
+                    root._lastNetworkTime = now;
+
+                } catch (e) {
+                    root._downloadSpeedFormatted = "--";
+                    root._uploadSpeedFormatted = "--";
+                }
+            }
+        }
+    }
+
+    Timer {
+        id: networkFetchTimer
+        interval: 1000
+        running: root.enabledResources.indexOf("networkSpeed") > -1
+        repeat: true
+        onTriggered: networkFetchProcess.running = true
+        onRunningChanged: {
+            if (!running) {
+                root._downloadSpeedFormatted = "--";
+                root._uploadSpeedFormatted = "--";
+                root._lastNetworkTime = 0;
+            }
+        }
+    }
+
     Component.onCompleted: {
         syncDgopSubscriptions();
         if (enabledResources.indexOf("diskPartitionUsage") > -1)
             diskFetchProcess.running = true;
+        if (enabledResources.indexOf("networkSpeed") > -1)
+            networkFetchProcess.running = true;
     }
 
     Component.onDestruction: {
