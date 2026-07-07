@@ -218,6 +218,10 @@ PluginComponent {
         return value !== undefined && value !== null;
     }
 
+    function ramTextMode() {
+        return String(pluginValue("ramUsageTextMode", "percentage"));
+    }
+
     function formatNetworkSpeed(verticalCompact = false) {
         const downloadText = _downloadSpeedFormatted || "--";
         const uploadText = _uploadSpeedFormatted || "--";
