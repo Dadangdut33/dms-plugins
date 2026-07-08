@@ -27,10 +27,12 @@ PluginComponent {
     property string _networkInterface: ""
     property string _downloadSpeedFormatted: "--"
     property string _uploadSpeedFormatted: "--"
+    property real _downloadSpeedValue: 0
+    property real _uploadSpeedValue: 0
 
     pillRightClickAction: rightClickSettingsEnabled() ? (() => {
-        PopoutService.openSettingsWithTab("plugins");
-    }) : null
+            PopoutService.openSettingsWithTab("plugins");
+        }) : null
 
     pillClickAction: () => {
         if (primaryResource === "diskPartitionUsage") {
@@ -41,7 +43,20 @@ PluginComponent {
     }
 
     function pluginValue(key, fallback) {
-        return pluginData[key] !== undefined ? pluginData[key] : fallback;
+        const value = pluginData[key];
+        if (value === undefined)
+            return fallback;
+        if (typeof fallback === "boolean") {
+            if (typeof value === "string") {
+                const lower = value.trim().toLowerCase();
+                if (lower === "true")
+                    return true;
+                if (lower === "false")
+                    return false;
+            }
+            return Boolean(value);
+        }
+        return value;
     }
 
     function rightClickSettingsEnabled() {
@@ -200,7 +215,7 @@ PluginComponent {
         case "diskPartitionUsage":
             return _parsedDiskMountsPercent >= 0 ? _parsedDiskMountsPercent : 0;
         case "networkSpeed":
-            return _downloadSpeedFormatted + " / " + _uploadSpeedFormatted;
+            return Math.max(_downloadSpeedValue, _uploadSpeedValue);
         case "cpuUsage":
         default:
             return DgopService.cpuUsage;
@@ -213,7 +228,7 @@ PluginComponent {
         if (resourceKey === "diskPartitionUsage")
             return _parsedDiskMountsPercent >= 0;
         if (resourceKey === "networkSpeed")
-            return _lastNetworkTime > 0;
+            return Math.max(_downloadSpeedValue, _uploadSpeedValue) > 0;
         const value = currentValue(resourceKey);
         return value !== undefined && value !== null;
     }
@@ -227,20 +242,22 @@ PluginComponent {
         const uploadText = _uploadSpeedFormatted || "--";
         if (verticalCompact)
             return "↓ " + downloadText + "\n↑ " + uploadText;
-        return "↓ " + downloadText + " / ↑ " + uploadText;
+        const separator = pluginValue("networkSpeedShowSeparator", true) ? " / " : " ";
+        return "↓ " + downloadText + separator + "↑ " + uploadText;
     }
 
     function formatSpeed(bytesPerSecond) {
         if (bytesPerSecond === undefined || bytesPerSecond === null || bytesPerSecond <= 0)
             return "--";
         const bytes = Number(bytesPerSecond);
+        const shortUnits = pluginValue("networkSpeedShortUnits", false);
         if (bytes >= 1e9)
-            return (bytes / 1e9).toFixed(1) + " GB/s";
+            return shortUnits ? (bytes / 1e9).toFixed(1) + "G" : (bytes / 1e9).toFixed(1) + " GB/s";
         if (bytes >= 1e6)
-            return (bytes / 1e6).toFixed(1) + " MB/s";
+            return shortUnits ? (bytes / 1e6).toFixed(1) + "M" : (bytes / 1e6).toFixed(1) + " MB/s";
         if (bytes >= 1e3)
-            return (bytes / 1e3).toFixed(0) + " KB/s";
-        return Math.round(bytes).toString() + " B/s";
+            return shortUnits ? Math.round(bytes / 1e3).toString() + "K" : Math.round(bytes / 1e3).toString() + " KB/s";
+        return shortUnits ? Math.round(bytes).toString() + "B" : Math.round(bytes).toString() + " B/s";
     }
 
     function formatMemoryGb(valueMb) {
@@ -307,8 +324,11 @@ PluginComponent {
     }
 
     function progressFor(resourceKey) {
-        if (resourceKey === "networkSpeed")
-            return 0;
+        if (resourceKey === "networkSpeed") {
+            const speedKb = Math.max(_downloadSpeedValue, _uploadSpeedValue) / 1024;
+            const maxValue = Math.max(1, Number(pluginValue(resourceKey + "ProgressMaxValue", resourceInfo(resourceKey).maxValue)));
+            return Math.max(0, Math.min(1, speedKb / maxValue));
+        }
         const maxValue = Math.max(1, Number(pluginValue(resourceKey + "ProgressMaxValue", resourceInfo(resourceKey).maxValue)));
         return Math.max(0, Math.min(1, Number(currentValue(resourceKey) || 0) / maxValue));
     }
@@ -317,8 +337,22 @@ PluginComponent {
         return String(pluginValue(resourceKey + "VisualStyle", "default"));
     }
 
-    function showIconFor(resourceKey) {
+    function showIconFor(resourceKey, isVertical = false) {
         return pluginValue(resourceKey + "ShowIcon", true);
+    }
+
+    function hideNetworkDirectionArrows(resourceKey) {
+        return resourceKey === "networkSpeed" && pluginValue("networkSpeedHideVerticalIcon", false);
+    }
+
+    function showFixedTextWidthFor(resourceKey) {
+        return pluginValue(resourceKey + "FixedTextWidth", false);
+    }
+
+    function horizontalFixedTextWidth(resourceKey) {
+        const defaultWidth = resourceKey === "networkSpeed" ? 76 : 0;
+        const widthValue = Number(pluginValue(resourceKey + "FixedTextWidthH", defaultWidth));
+        return widthValue > 0 ? widthValue : defaultWidth;
     }
 
     function showTextFor(resourceKey) {
@@ -389,38 +423,30 @@ PluginComponent {
     }
 
     function colorForValue(resourceKey) {
-        const value = currentValue(resourceKey);
+        const value = resourceKey === "networkSpeed" ? Math.max(_downloadSpeedValue, _uploadSpeedValue) / 1024 : currentValue(resourceKey);
         if (!useValueColorsFor(resourceKey)) {
-            return themeColorFromKey(
-                String(pluginValue(resourceKey + "FixedColorKey", "primary")),
-                parseColorString(pluginValue(resourceKey + "FixedCustomColor", Theme.primary.toString()), Theme.primary),
-                Theme.primary
-            );
+            return themeColorFromKey(String(pluginValue(resourceKey + "FixedColorKey", "primary")), parseColorString(pluginValue(resourceKey + "FixedCustomColor", Theme.primary.toString()), Theme.primary), Theme.primary);
         }
 
         if (value >= dangerThresholdFor(resourceKey)) {
-            return themeColorFromKey(
-                String(pluginValue(resourceKey + "DangerColorKey", "error")),
-                parseColorString(pluginValue(resourceKey + "DangerCustomColor", Theme.error.toString()), Theme.error),
-                Theme.error
-            );
+            return themeColorFromKey(String(pluginValue(resourceKey + "DangerColorKey", "error")), parseColorString(pluginValue(resourceKey + "DangerCustomColor", Theme.error.toString()), Theme.error), Theme.error);
         }
         if (value >= warningThresholdFor(resourceKey)) {
-            return themeColorFromKey(
-                String(pluginValue(resourceKey + "WarningColorKey", "warning")),
-                parseColorString(pluginValue(resourceKey + "WarningCustomColor", Theme.warning.toString()), Theme.warning),
-                Theme.warning
-            );
+            return themeColorFromKey(String(pluginValue(resourceKey + "WarningColorKey", "warning")), parseColorString(pluginValue(resourceKey + "WarningCustomColor", Theme.warning.toString()), Theme.warning), Theme.warning);
         }
-        return themeColorFromKey(
-            String(pluginValue(resourceKey + "NormalColorKey", "primary")),
-            parseColorString(pluginValue(resourceKey + "NormalCustomColor", Theme.primary.toString()), Theme.primary),
-            Theme.primary
-        );
+        return themeColorFromKey(String(pluginValue(resourceKey + "NormalColorKey", "primary")), parseColorString(pluginValue(resourceKey + "NormalCustomColor", Theme.primary.toString()), Theme.primary), Theme.primary);
     }
 
     function textColorFor(resourceKey) {
         return colorizeTextFor(resourceKey) ? colorForValue(resourceKey) : Theme.widgetTextColor;
+    }
+
+    function networkSpeedDownloadColor() {
+        return parseColorString(pluginValue("networkSpeedDownloadColor", Theme.primary), Theme.primary);
+    }
+
+    function networkSpeedUploadColor() {
+        return parseColorString(pluginValue("networkSpeedUploadColor", Theme.secondary), Theme.secondary);
     }
 
     function iconNameFor(resourceKey) {
@@ -514,14 +540,10 @@ PluginComponent {
     Process {
         id: networkInterfaceProcess
 
-        command: [
-            "sh",
-            "-c",
-            "ip route get 1.1.1.1 | awk '{print $5; exit}'"
-        ]
+        command: ["sh", "-c", "ip route get 1.1.1.1 | awk '{print $5; exit}'"]
 
         stdout: SplitParser {
-            onRead: function(data) {
+            onRead: function (data) {
                 root._networkInterface = data.trim();
             }
         }
@@ -539,7 +561,7 @@ PluginComponent {
         id: diskFetchProcess
         command: ["dgop", "disk", "--json"]
         stdout: SplitParser {
-            onRead: function(data) {
+            onRead: function (data) {
                 try {
                     const parsed = JSON.parse(data.trim());
                     const mounts = parsed.mounts || [];
@@ -574,10 +596,7 @@ PluginComponent {
     Process {
         id: networkFetchProcess
 
-        command: [
-            "sh",
-            "-c",
-            `
+        command: ["sh", "-c", `
             iface=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $5; exit}')
 
             if [ -z "$iface" ]; then
@@ -588,11 +607,10 @@ PluginComponent {
             tx=$(cat /sys/class/net/$iface/statistics/tx_bytes 2>/dev/null)
 
             echo "$iface $rx $tx"
-            `
-        ]
+            `]
 
         stdout: SplitParser {
-            onRead: function(data) {
+            onRead: function (data) {
                 try {
                     const parts = data.trim().split(/\s+/);
 
@@ -617,23 +635,20 @@ PluginComponent {
                     const deltaTime = (now - root._lastNetworkTime) / 1000;
 
                     if (root._lastNetworkTime > 0 && deltaTime > 0) {
-                        const downloadSpeed =
-                            (downloadBytes - root._lastDownloadBytes) / deltaTime;
+                        const downloadSpeed = (downloadBytes - root._lastDownloadBytes) / deltaTime;
 
-                        const uploadSpeed =
-                            (uploadBytes - root._lastUploadBytes) / deltaTime;
+                        const uploadSpeed = (uploadBytes - root._lastUploadBytes) / deltaTime;
 
-                        root._downloadSpeedFormatted =
-                            root.formatSpeed(Math.max(downloadSpeed, 0));
+                        root._downloadSpeedValue = Math.max(downloadSpeed, 0);
+                        root._uploadSpeedValue = Math.max(uploadSpeed, 0);
+                        root._downloadSpeedFormatted = root.formatSpeed(root._downloadSpeedValue);
 
-                        root._uploadSpeedFormatted =
-                            root.formatSpeed(Math.max(uploadSpeed, 0));
+                        root._uploadSpeedFormatted = root.formatSpeed(root._uploadSpeedValue);
                     }
 
                     root._lastDownloadBytes = downloadBytes;
                     root._lastUploadBytes = uploadBytes;
                     root._lastNetworkTime = now;
-
                 } catch (e) {
                     root._downloadSpeedFormatted = "--";
                     root._uploadSpeedFormatted = "--";

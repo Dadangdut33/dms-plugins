@@ -19,6 +19,8 @@ Item {
     readonly property bool hasTextOnlyMetric: root.anyActiveResourceWithoutIcon()
     readonly property real normalizedSlotWidth: Math.max(root.iconSize, Math.round(root.textSize * 1.9))
     readonly property real sharedVerticalMetricWidth: root.computeSharedVerticalMetricWidth()
+    readonly property real fixedTextWidthV: Math.max(root.textSize * 5.5, 64)
+    readonly property real fixedTextWidthH: Math.max(root.textSize * 7, 76)
 
     function anyActiveResourceWithoutIcon() {
         const resources = pluginRoot.enabledResources || [];
@@ -42,8 +44,13 @@ Item {
         const resources = pluginRoot.enabledResources || [];
         for (let i = 0; i < resources.length; ++i) {
             const resourceKey = resources[i];
-            if (pluginRoot.showTextFor(resourceKey))
-                width = Math.max(width, Math.round(root.textSize * 3.9));
+            if (pluginRoot.showTextFor(resourceKey)) {
+                const baseWidth = Math.round(root.textSize * 3.9);
+                width = Math.max(width, baseWidth);
+                if (resourceKey === "networkSpeed") {
+                    width = Math.max(width, Math.round(root.textSize * 7.5));
+                }
+            }
         }
         return width;
     }
@@ -64,11 +71,12 @@ Item {
     component GaugeBadge: Item {
         required property string resourceKey
         required property real badgeSize
+        property bool verticalOrientation: false
 
         readonly property real progressValue: pluginRoot.progressFor(resourceKey)
         readonly property color accentColor: pluginRoot.colorForValue(resourceKey)
         readonly property color trackColor: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.18)
-        readonly property bool iconVisible: pluginRoot.showIconFor(resourceKey)
+        readonly property bool iconVisible: pluginRoot.showIconFor(resourceKey, verticalOrientation)
         readonly property real expandedBadgeSize: Math.max(badgeSize, Math.round(root.textSize * 2.3))
         readonly property real effectiveBadgeSize: root.hasTextOnlyMetric ? expandedBadgeSize : (iconVisible ? badgeSize : expandedBadgeSize)
 
@@ -201,9 +209,11 @@ Item {
                 visible: pluginRoot.showTextFor(horizontalMetric.resourceKey)
                 anchors.verticalCenter: parent.verticalCenter
                 text: pluginRoot.formatValue(horizontalMetric.resourceKey, false)
+                width: pluginRoot.showFixedTextWidthFor(horizontalMetric.resourceKey) ? pluginRoot.horizontalFixedTextWidth(horizontalMetric.resourceKey) : undefined
                 font.pixelSize: root.textSize
                 color: pluginRoot.textColorFor(horizontalMetric.resourceKey)
                 wrapMode: Text.NoWrap
+                elide: pluginRoot.showFixedTextWidthFor(horizontalMetric.resourceKey) ? Text.ElideRight : Text.ElideNone
             }
         }
     }
@@ -222,8 +232,9 @@ Item {
                 return Math.max(root.iconSize, root.verticalBarWidth);
             return root.iconSize;
         }
+        readonly property real effectiveMetricWidth: root.sharedVerticalMetricWidth
 
-        width: root.sharedVerticalMetricWidth
+        width: effectiveMetricWidth
         implicitWidth: width
         implicitHeight: metricColumn.implicitHeight
 
@@ -238,6 +249,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 resourceKey: verticalMetric.resourceKey
                 badgeSize: root.verticalGaugeSize
+                verticalOrientation: true
             }
 
             Column {
@@ -246,7 +258,7 @@ Item {
                 spacing: Theme.spacingXS / 2
 
                 DankIcon {
-                    visible: pluginRoot.showIconFor(verticalMetric.resourceKey)
+                    visible: pluginRoot.showIconFor(verticalMetric.resourceKey, true)
                     anchors.horizontalCenter: parent.horizontalCenter
                     name: pluginRoot.iconNameFor(verticalMetric.resourceKey)
                     size: root.visualIconSize(verticalMetric.resourceKey, verticalMetric.currentStyle)
@@ -271,15 +283,39 @@ Item {
                 }
             }
 
-            StyledText {
+            Column {
                 visible: pluginRoot.showTextFor(verticalMetric.resourceKey)
                 anchors.horizontalCenter: parent.horizontalCenter
-                width: parent.width
-                text: pluginRoot.formatValue(verticalMetric.resourceKey, true)
-                font.pixelSize: root.textSize
-                color: pluginRoot.textColorFor(verticalMetric.resourceKey)
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.WordWrap
+                width: pluginRoot.showFixedTextWidthFor(verticalMetric.resourceKey) ? root.fixedTextWidthV : parent.width
+                spacing: Theme.spacingXS / 2
+
+                Repeater {
+                    model: verticalMetric.resourceKey === "networkSpeed" && pluginRoot.hideNetworkDirectionArrows(verticalMetric.resourceKey) ? [
+                        {
+                            text: pluginRoot._downloadSpeedFormatted,
+                            color: pluginRoot.networkSpeedDownloadColor()
+                        },
+                        {
+                            text: pluginRoot._uploadSpeedFormatted,
+                            color: pluginRoot.networkSpeedUploadColor()
+                        }
+                    ] : [
+                        {
+                            text: pluginRoot.formatValue(verticalMetric.resourceKey, true),
+                            color: pluginRoot.textColorFor(verticalMetric.resourceKey)
+                        }
+                    ]
+
+                    delegate: StyledText {
+                        text: modelData.text
+                        width: parent.width
+                        font.pixelSize: verticalMetric.resourceKey === "networkSpeed" ? Math.max(root.textSize * 0.58, 9) : root.textSize
+                        color: modelData.color
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        elide: pluginRoot.showFixedTextWidthFor(verticalMetric.resourceKey) ? Text.ElideRight : Text.ElideNone
+                    }
+                }
             }
         }
     }
