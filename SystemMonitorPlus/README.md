@@ -8,7 +8,7 @@ The functionality should be the same as the stock DMS plugin, but with more opti
 
 ## Features
 
-- Switch between `CPU usage`, `CPU temperature`, `RAM usage`, and `GPU temperature`
+- Switch between `CPU usage`, `CPU temperature`, `RAM usage`, `GPU temperature`, `Disk usage`, and `Network Speed`
 - Three looks:
   - `Default`: icon + text
   - `Gauge`: icon with a circular speedometer-style ring
