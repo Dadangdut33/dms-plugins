@@ -286,6 +286,14 @@ PluginSettings {
         }
     }
 
+    function defaultProgressMaxValue(key) {
+        return key === "networkSpeed" ? 1000 : 100;
+    }
+
+    function progressScaleMaxValue(key) {
+        return key === "networkSpeed" ? 100000 : 100;
+    }
+
     function loadedValue(key, fallback) {
         const value = loadValue(key, fallback);
         return (value === undefined || value === null) ? fallback : value;
@@ -1001,9 +1009,9 @@ PluginSettings {
             settingKey: resourceKey + "ProgressMaxValue"
             label: "Gauge/Bar Max Value"
             description: "The value treated as 100% fill for gauge and bar styles."
-            defaultValue: 1000
+            defaultValue: root.defaultProgressMaxValue(resourceKey)
             minimum: 40
-            maximum: 100000
+            maximum: root.progressScaleMaxValue(resourceKey)
             unit: root.progressScaleUnit(resourceKey)
             leftIcon: "tune"
         }
