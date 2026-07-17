@@ -2,7 +2,7 @@
   "id": "systemMonitorPlus",
   "name": "System Monitor Plus",
   "description": "A unified DMS system monitor widget with customizable visual and resource showing capabilities.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "Dadangdut33",
   "icon": "monitoring",
   "type": "widget",
