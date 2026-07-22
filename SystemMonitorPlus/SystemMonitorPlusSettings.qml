@@ -14,7 +14,7 @@ PluginSettings {
     property int currentTab: 0
     property bool resourceCardActive: true
 
-    readonly property var allResourceKeys: ["cpuUsage", "cpuTemp", "ramUsage", "gpuTemp", "diskPartitionUsage"]
+    readonly property var allResourceKeys: ["cpuUsage", "cpuTemp", "ramUsage", "gpuTemp", "diskPartitionUsage", "networkSpeed"]
     readonly property var colorOptions: [
         {
             "label": "Widget Text",
@@ -140,6 +140,8 @@ PluginSettings {
             return "GPU Temperature";
         case "diskPartitionUsage":
             return "Disk Usage";
+        case "networkSpeed":
+            return "Network Speed";
         case "cpuUsage":
         default:
             return "CPU Usage";
@@ -172,6 +174,8 @@ PluginSettings {
             return "auto_awesome_mosaic";
         case "diskPartitionUsage":
             return "sd_storage";
+        case "networkSpeed":
+            return "network_cell";
         case "cpuUsage":
         default:
             return "memory";
@@ -267,7 +271,7 @@ PluginSettings {
     }
 
     function resourceUsesProgressScale(key) {
-        return key === "cpuTemp" || key === "gpuTemp";
+        return key === "cpuTemp" || key === "gpuTemp" || key === "networkSpeed";
     }
 
     function progressScaleUnit(key) {
@@ -275,9 +279,19 @@ PluginSettings {
         case "cpuTemp":
         case "gpuTemp":
             return "°";
+        case "networkSpeed":
+            return " KB/s";
         default:
             return "";
         }
+    }
+
+    function defaultProgressMaxValue(key) {
+        return key === "networkSpeed" ? 1000 : 100;
+    }
+
+    function progressScaleMaxValue(key) {
+        return key === "networkSpeed" ? 100000 : 100;
     }
 
     function loadedValue(key, fallback) {
@@ -362,6 +376,8 @@ PluginSettings {
             return "gpuTemp";
         case 5:
             return "diskPartitionUsage";
+        case 6:
+            return "networkSpeed";
         default:
             return "";
         }
@@ -895,6 +911,64 @@ PluginSettings {
             defaultValue: true
         }
 
+        InlineToggleSetting {
+            visible: resourceKey === "networkSpeed"
+            settingKey: "networkSpeedHideVerticalIcon"
+            label: "Hide Icon in Vertical Bar"
+            description: "When enabled, the vertical bar will hide the network icon and use upload/download colors for the text lines."
+            defaultValue: true
+        }
+
+        InlineColorSetting {
+            visible: resourceKey === "networkSpeed" && root.loadedValue("networkSpeedHideVerticalIcon", false)
+            settingKey: "networkSpeedDownloadColor"
+            label: "Download Color"
+            description: "Color used for the download line when the network icon is hidden in vertical mode."
+            defaultValue: Theme.primary
+        }
+
+        InlineColorSetting {
+            visible: resourceKey === "networkSpeed" && root.loadedValue("networkSpeedHideVerticalIcon", false)
+            settingKey: "networkSpeedUploadColor"
+            label: "Upload Color"
+            description: "Color used for the upload line when the network icon is hidden in vertical mode."
+            defaultValue: Theme.secondary
+        }
+
+        InlineToggleSetting {
+            settingKey: resourceKey + "FixedTextWidth"
+            label: "Fixed Text Width"
+            description: "Keep the metric text width stable so the bar layout does not jump when values change."
+            defaultValue: true
+        }
+
+        InlineSliderSetting {
+            visible: resourceKey === "networkSpeed" && root.loadedValue(resourceKey + "FixedTextWidth", false)
+            settingKey: "networkSpeedFixedTextWidthH"
+            label: "Horizontal Fixed Width"
+            description: "Set the preferred horizontal text width for network speed when fixed width is enabled."
+            defaultValue: 90
+            minimum: 40
+            maximum: 250
+            unit: "px"
+        }
+
+        InlineToggleSetting {
+            visible: resourceKey === "networkSpeed"
+            settingKey: "networkSpeedShowSeparator"
+            label: "Show Up/Down Separator"
+            description: "Toggle the separator between download and upload values in horizontal network speed text."
+            defaultValue: true
+        }
+
+        InlineToggleSetting {
+            visible: resourceKey === "networkSpeed"
+            settingKey: "networkSpeedShortUnits"
+            label: "Short Network Units"
+            description: "Show network speed units as K, M, or G instead of KB/s, MB/s, or GB/s."
+            defaultValue: false
+        }
+
         InlineSelectionSetting {
             id: ramTextModeSetting
             visible: resourceKey === "ramUsage"
@@ -935,9 +1009,9 @@ PluginSettings {
             settingKey: resourceKey + "ProgressMaxValue"
             label: "Gauge/Bar Max Value"
             description: "The value treated as 100% fill for gauge and bar styles."
-            defaultValue: 100
+            defaultValue: root.defaultProgressMaxValue(resourceKey)
             minimum: 40
-            maximum: 150
+            maximum: root.progressScaleMaxValue(resourceKey)
             unit: root.progressScaleUnit(resourceKey)
             leftIcon: "tune"
         }
@@ -1124,6 +1198,10 @@ PluginSettings {
                 {
                     "text": "Disk",
                     "icon": "sd_storage"
+                },
+                {
+                    "text": "Network",
+                    "icon": "network_cell"
                 }
             ]
 
