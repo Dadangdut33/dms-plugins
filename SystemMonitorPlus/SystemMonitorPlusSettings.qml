@@ -173,7 +173,7 @@ PluginSettings {
         case "gpuTemp":
             return "auto_awesome_mosaic";
         case "diskPartitionUsage":
-            return "sd_storage";
+            return "storage";
         case "networkSpeed":
             return "network_cell";
         case "cpuUsage":
@@ -227,43 +227,19 @@ PluginSettings {
         return items;
     }
 
-    Process {
-        id: diskMountsProcess
-        command: ["dgop", "disk", "--json"]
-        onExited: exitCode => {
-            if (exitCode !== 0) {
-                ToastService.showError("Disk init process failed with exit code:", exitCode);
-            }
-        }
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (text.trim()) {
-                    try {
-                        const data = JSON.parse(text.trim());
-                        _diskMounts = data.mounts || [];
-                    } catch (e) {
-                        ToastService.showError("Failed to parse disk init JSON:", e);
-                    }
+    function diskMountOptions() {
+        const diskMounts = DgopService.diskMounts;
+        if (diskMounts.length === 0)
+            return [
+                {
+                    label: "/",
+                    value: "/"
                 }
-            }
-        }
-    }
-
-    function refreshDiskMounts() {
-        _diskMounts = [];
-        diskMountsProcess.running = true;
-    }
-
-    property var _diskMounts: []
-    function diskMountOptions(resourceKey) {
-        if (_diskMounts.length === 0)
-            return [];
-        return _diskMounts.map(m => ({
+            ];
+        return diskMounts.map(m => ({
                     label: m.mount + " (" + m.size + ")",
                     value: m.mount
                 }));
-
-        // return [{label: "/", value: "/"},{label: "/home", value: "/home"}];
     }
 
     function resourceIsGpu(key) {
@@ -389,17 +365,11 @@ PluginSettings {
             Qt.callLater(() => refreshSettingsUi());
             if (currentTab > 0)
                 rebuildResourceCard();
-            if (currentTab === 5)
-                refreshDiskMounts();
         }
     }
     onCurrentTabChanged: {
         if (currentTab > 0)
             rebuildResourceCard();
-        if (currentTab === 5) {
-            diskMountsProcess.running = true;
-            refreshDiskMounts();
-        }
     }
 
     Connections {
@@ -1031,7 +1001,7 @@ PluginSettings {
             settingKey: resourceKey + "Mount"
             label: "Partition"
             description: "Choose which partition to monitor"
-            options: root.diskMountOptions(resourceKey)
+            options: root.diskMountOptions()
             defaultValue: "/"
         }
 
@@ -1197,7 +1167,7 @@ PluginSettings {
                 },
                 {
                     "text": "Disk",
-                    "icon": "sd_storage"
+                    "icon": "storage"
                 },
                 {
                     "text": "Network",

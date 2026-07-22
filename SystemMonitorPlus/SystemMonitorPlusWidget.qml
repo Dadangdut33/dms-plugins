@@ -21,12 +21,6 @@ PluginComponent {
     property var _trackedGpuPciIds: []
     property var _parsedDiskMounts: []
     property real _parsedDiskMountsPercent: -1
-    property real _lastDownloadBytes: 0
-    property real _lastUploadBytes: 0
-    property real _lastNetworkTime: 0
-    property string _networkInterface: ""
-    property string _downloadSpeedFormatted: "--"
-    property string _uploadSpeedFormatted: "--"
     property real _downloadSpeedValue: 0
     property real _uploadSpeedValue: 0
 
@@ -35,11 +29,7 @@ PluginComponent {
         }) : null
 
     pillClickAction: () => {
-        if (primaryResource === "diskPartitionUsage") {
-            pluginPopout.toggle();
-        } else {
-            openProcessList();
-        }
+        openProcessList();
     }
 
     function pluginValue(key, fallback) {
@@ -119,9 +109,9 @@ PluginComponent {
         case "diskPartitionUsage":
             return {
                 "label": "Disk Usage",
-                "icon": "sd_storage",
-                "module": "disk",
-                "sortKey": "cpu",
+                "icon": "storage",
+                "module": "diskmounts",
+                "sortKey": "diskmounts",
                 "placeholder": "--%",
                 "unit": "%",
                 "maxValue": 100,
@@ -237,9 +227,27 @@ PluginComponent {
         return String(pluginValue("ramUsageTextMode", "percentage"));
     }
 
+    function formatDiskUsage() {
+        const mounts = DgopService.diskMounts;
+        if (Array.isArray(mounts) && mounts.length > 0) {
+            const mountPoint = String(root.pluginValue("diskPartitionUsageMount", "/"));
+            for (let i = 0; i < mounts.length; i++) {
+                if (mounts[i].mount === mountPoint) {
+                    root._parsedDiskMountsPercent = mounts[i].percent.replace("%", "");
+                    return mounts[i].percent;
+                }
+            }
+            root._parsedDiskMountsPercent = -2;
+            return "-2%";
+        } else {
+            root._parsedDiskMountsPercent = -3;
+            return "-3%";
+        }
+    }
+
     function formatNetworkSpeed(verticalCompact = false) {
-        const downloadText = _downloadSpeedFormatted || "--";
-        const uploadText = _uploadSpeedFormatted || "--";
+        const downloadText = formatSpeed(DgopService.networkRxRate);
+        const uploadText = formatSpeed(DgopService.networkTxRate);
         if (verticalCompact)
             return "↓ " + downloadText + "\n↑ " + uploadText;
         const separator = pluginValue("networkSpeedShowSeparator", true) ? " / " : " ";
@@ -313,10 +321,10 @@ PluginComponent {
             return formatRamValue(verticalCompact);
         if (resourceKey === "networkSpeed")
             return formatNetworkSpeed(verticalCompact);
+        if (resourceKey === "diskPartitionUsage")
+            return formatDiskUsage();
         if (!hasValue(resourceKey))
             return meta.placeholder;
-        if (resourceKey === "diskPartitionUsage")
-            return Number(_parsedDiskMountsPercent).toFixed(meta.precision) + meta.unit;
         const value = currentValue(resourceKey);
         if (resourceKey === "cpuTemp" || resourceKey === "gpuTemp")
             return Math.round(value).toString() + meta.unit;
@@ -537,147 +545,8 @@ PluginComponent {
 
     onResourceSignatureChanged: Qt.callLater(syncDgopSubscriptions)
 
-    Process {
-        id: networkInterfaceProcess
-
-        command: ["sh", "-c", "ip route get 1.1.1.1 | awk '{print $5; exit}'"]
-
-        stdout: SplitParser {
-            onRead: function (data) {
-                root._networkInterface = data.trim();
-            }
-        }
-    }
-
-    Timer {
-        interval: 30000
-        repeat: true
-        running: true
-
-        onTriggered: networkInterfaceProcess.running = true
-    }
-
-    Process {
-        id: diskFetchProcess
-        command: ["dgop", "disk", "--json"]
-        stdout: SplitParser {
-            onRead: function (data) {
-                try {
-                    const parsed = JSON.parse(data.trim());
-                    const mounts = parsed.mounts || [];
-                    if (Array.isArray(mounts)) {
-                        root._parsedDiskMounts = mounts;
-                        const mountPoint = String(root.pluginValue("diskPartitionUsageMount", "/"));
-                        const match = mounts.find(m => m.mount === mountPoint);
-                        root._parsedDiskMountsPercent = match ? parseInt(match.percent, 10) : -1;
-                    }
-                } catch (e) {
-                    root._parsedDiskMounts = [];
-                    root._parsedDiskMountsPercent = -1;
-                }
-            }
-        }
-    }
-
-    Timer {
-        id: diskFetchTimer
-        interval: 5000
-        running: root.enabledResources.indexOf("diskPartitionUsage") > -1
-        repeat: true
-        onTriggered: diskFetchProcess.running = true
-        onRunningChanged: {
-            if (!running) {
-                root._parsedDiskMounts = [];
-                root._parsedDiskMountsPercent = -1;
-            }
-        }
-    }
-
-    Process {
-        id: networkFetchProcess
-
-        command: ["sh", "-c", `
-            iface=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $5; exit}')
-
-            if [ -z "$iface" ]; then
-                exit 1
-            fi
-
-            rx=$(cat /sys/class/net/$iface/statistics/rx_bytes 2>/dev/null)
-            tx=$(cat /sys/class/net/$iface/statistics/tx_bytes 2>/dev/null)
-
-            echo "$iface $rx $tx"
-            `]
-
-        stdout: SplitParser {
-            onRead: function (data) {
-                try {
-                    const parts = data.trim().split(/\s+/);
-
-                    if (parts.length < 3)
-                        return;
-
-                    const iface = parts[0];
-                    const downloadBytes = Number(parts[1]);
-                    const uploadBytes = Number(parts[2]);
-
-                    const now = Date.now();
-
-                    // interface berubah (wifi -> lan, vpn, dsb)
-                    if (root._networkInterface !== iface) {
-                        root._networkInterface = iface;
-                        root._lastDownloadBytes = downloadBytes;
-                        root._lastUploadBytes = uploadBytes;
-                        root._lastNetworkTime = now;
-                        return;
-                    }
-
-                    const deltaTime = (now - root._lastNetworkTime) / 1000;
-
-                    if (root._lastNetworkTime > 0 && deltaTime > 0) {
-                        const downloadSpeed = (downloadBytes - root._lastDownloadBytes) / deltaTime;
-
-                        const uploadSpeed = (uploadBytes - root._lastUploadBytes) / deltaTime;
-
-                        root._downloadSpeedValue = Math.max(downloadSpeed, 0);
-                        root._uploadSpeedValue = Math.max(uploadSpeed, 0);
-                        root._downloadSpeedFormatted = root.formatSpeed(root._downloadSpeedValue);
-
-                        root._uploadSpeedFormatted = root.formatSpeed(root._uploadSpeedValue);
-                    }
-
-                    root._lastDownloadBytes = downloadBytes;
-                    root._lastUploadBytes = uploadBytes;
-                    root._lastNetworkTime = now;
-                } catch (e) {
-                    root._downloadSpeedFormatted = "--";
-                    root._uploadSpeedFormatted = "--";
-                }
-            }
-        }
-    }
-
-    Timer {
-        id: networkFetchTimer
-        interval: 1000
-        running: root.enabledResources.indexOf("networkSpeed") > -1
-        repeat: true
-        onTriggered: networkFetchProcess.running = true
-        onRunningChanged: {
-            if (!running) {
-                root._downloadSpeedFormatted = "--";
-                root._uploadSpeedFormatted = "--";
-                root._lastNetworkTime = 0;
-            }
-        }
-    }
-
     Component.onCompleted: {
         syncDgopSubscriptions();
-        if (enabledResources.indexOf("diskPartitionUsage") > -1)
-            diskFetchProcess.running = true;
-        if (enabledResources.indexOf("networkSpeed") > -1)
-            networkFetchProcess.running = true;
     }
 
     Component.onDestruction: {
