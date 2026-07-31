@@ -122,7 +122,7 @@ Item {
         }
 
         StyledText {
-            visible: !parent.iconVisible
+            visible: !parent.iconVisible && parent.resourceKey !== "networkSpeed"
             anchors.centerIn: parent
             text: pluginRoot.formatValue(parent.resourceKey)
             width: Math.max(14, parent.width - root.progressLineWidth * 5)
@@ -258,7 +258,7 @@ Item {
                 spacing: Theme.spacingXS / 2
 
                 DankIcon {
-                    visible: pluginRoot.showIconFor(verticalMetric.resourceKey, true)
+                    visible: pluginRoot.showIconFor(verticalMetric.resourceKey, true) && !pluginRoot.hideNetworkDirectionArrows(verticalMetric.resourceKey)
                     anchors.horizontalCenter: parent.horizontalCenter
                     name: pluginRoot.iconNameFor(verticalMetric.resourceKey)
                     size: root.visualIconSize(verticalMetric.resourceKey, verticalMetric.currentStyle)

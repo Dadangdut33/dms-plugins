@@ -21,8 +21,10 @@ PluginComponent {
     property var _trackedGpuPciIds: []
     property var _parsedDiskMounts: []
     property real _parsedDiskMountsPercent: -1
-    property real _downloadSpeedValue: 0
-    property real _uploadSpeedValue: 0
+    readonly property real _downloadSpeedValue: DgopService.networkRxRate ?? 0
+    readonly property real _uploadSpeedValue: DgopService.networkTxRate ?? 0
+    readonly property string _downloadSpeedFormatted: formatSpeed(DgopService.networkRxRate)
+    readonly property string _uploadSpeedFormatted: formatSpeed(DgopService.networkTxRate)
 
     pillRightClickAction: rightClickSettingsEnabled() ? (() => {
             PopoutService.openSettingsWithTab("plugins");
@@ -255,7 +257,7 @@ PluginComponent {
     }
 
     function formatSpeed(bytesPerSecond) {
-        if (bytesPerSecond === undefined || bytesPerSecond === null || bytesPerSecond <= 0)
+        if (bytesPerSecond === undefined || bytesPerSecond === null || bytesPerSecond < 0)
             return "--";
         const bytes = Number(bytesPerSecond);
         const shortUnits = pluginValue("networkSpeedShortUnits", false);
