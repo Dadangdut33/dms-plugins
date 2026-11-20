@@ -94,14 +94,14 @@ PluginComponent {
         if (visible) {
             // Close other panels when opening on a new screen
             for (const name in panelByName) {
-                if (name !== key && panelByName[name]) {
-                    panelByName[name].setOpen(false);
-                }
+                const other = panelByName[name];
+                if (name !== key && other && typeof other.setOpen === "function")
+                    other.setOpen(false);
             }
             for (const name in emojiPopupByName) {
-                if (name !== key && emojiPopupByName[name]) {
-                    emojiPopupByName[name].setOpen(false);
-                }
+                const other = emojiPopupByName[name];
+                if (name !== key && other && typeof other.setOpen === "function")
+                    other.setOpen(false);
             }
         }
         const panel = panelByName[key];
@@ -296,9 +296,14 @@ PluginComponent {
             WlrLayershell.namespace: "dms-clipboardPlus-panel-" + (screen?.name || "unknown")
             WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
+            // screen is already gone by the time onDestruction runs, so deriving the
+            // key from it there yields "default" and deletes the wrong entry. The
+            // destroyed object then stays in the map and calling setOpen on it throws
+            // a TypeError. Pin the key once, at creation time.
+            readonly property string panelKey: screen?.name || "default"
+
             Component.onCompleted: {
-                const key = screen?.name || "default";
-                panelByName[key] = panelWindow;
+                panelByName[panelKey] = panelWindow;
             }
 
             onVisibleChanged: {
@@ -308,10 +313,9 @@ PluginComponent {
             }
 
             Component.onDestruction: {
-                const key = screen?.name || "default";
-                if (panelByName[key] === panelWindow) {
+                if (panelByName[panelKey] === panelWindow) {
                     const copy = Object.assign({}, panelByName);
-                    delete copy[key];
+                    delete copy[panelKey];
                     panelByName = copy;
                 }
             }
@@ -363,16 +367,16 @@ PluginComponent {
             screen: modelData
             pluginApi: clipboardPlusApi
 
+            readonly property string emojiPanelKey: screen?.name || "default"
+
             Component.onCompleted: {
-                const key = screen?.name || "default";
-                emojiPopupByName[key] = emojiPopupWindow;
+                emojiPopupByName[emojiPanelKey] = emojiPopupWindow;
             }
 
             Component.onDestruction: {
-                const key = screen?.name || "default";
-                if (emojiPopupByName[key] === emojiPopupWindow) {
+                if (emojiPopupByName[emojiPanelKey] === emojiPopupWindow) {
                     const copy = Object.assign({}, emojiPopupByName);
-                    delete copy[key];
+                    delete copy[emojiPanelKey];
                     emojiPopupByName = copy;
                 }
             }
