@@ -2,7 +2,7 @@
   "id": "netbirdStatus",
   "name": "NetBird Status",
   "description": "Show NetBird VPN status in the bar. Ported from Noctalia netbird plugin.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "Dadangdut33",
   "icon": "network_check",
   "type": "widget",
