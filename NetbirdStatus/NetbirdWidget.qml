@@ -406,11 +406,48 @@ PluginComponent {
         if (root.netbirdRunning) {
             root.lastToggleAction = "disconnect";
             toggleProcess.command = ["netbird", "down"];
+            toggleProcess.running = true;
         } else {
+            // `netbird up` may run an SSO login that waits on localhost:53000 for the
+            // browser redirect. A child Process dies with this widget (e.g. when the
+            // control center closes), killing that listener mid-login. Run it detached,
+            // report through notify-send, and poll status until it connects.
             root.lastToggleAction = "connect";
-            toggleProcess.command = ["netbird", "up"];
+            Quickshell.execDetached(["sh", "-c", root.connectScript]);
+            connectPollTimer.ticks = 0;
+            connectPollTimer.start();
         }
-        toggleProcess.running = true;
+    }
+
+    readonly property string connectScript: [
+        'dir="${XDG_RUNTIME_DIR:-/tmp}"',
+        'log="$dir/netbird-up.log"',
+        'exec 9>"$dir/netbird-up.lock"',
+        'if command -v flock >/dev/null && ! flock -n 9; then',
+        '  notify-send -a NetBird "NetBird" "Login already in progress. Finish it in the browser."',
+        '  exit 0',
+        'fi',
+        'if netbird up >"$log" 2>&1; then',
+        '  notify-send -a NetBird "NetBird" "Connected"',
+        'else',
+        '  notify-send -u critical -a NetBird "NetBird connect failed" "$(tail -n 3 "$log")"',
+        'fi'
+    ].join("\n")
+
+    Timer {
+        id: connectPollTimer
+        property int ticks: 0
+        interval: 3000
+        repeat: true
+        onTriggered: {
+            ticks++;
+            if (root.netbirdRunning || ticks > 100) {
+                stop();
+                root.isRefreshing = false;
+                return;
+            }
+            updateNetbirdStatus();
+        }
     }
 
     Timer {

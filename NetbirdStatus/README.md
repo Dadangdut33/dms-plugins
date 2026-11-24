@@ -10,8 +10,9 @@ Ported from [netbird plugin in noctalia-shell](https://noctalia.dev/plugins/netb
 ## Requirements
 
 - NetBird must be installed on your system
-- NetBird must be set up and authenticated
+- NetBird must be set up (the widget's Connect button can run the SSO login)
 - The netbird CLI must be accessible in your PATH
+- Optional: `notify-send` (libnotify) for connect success/failure notifications
 
 ![NetbirdStatus - Widget](preview/widget.png)
 ![NetbirdStatus - Settings](preview/settings.png)
@@ -34,5 +35,5 @@ If the status doesn't update automatically, try:
 Ensure that:
 
 - You have proper permissions to control NetBird
-- NetBird is authenticated and set up (`netbird up` in terminal first)
 - The NetBird daemon service is running (`netbird service start`)
+- If Connect fails, the output of the last `netbird up` run is in `$XDG_RUNTIME_DIR/netbird-up.log`
